@@ -1,0 +1,29 @@
+Package: xtife
+Type: Package
+Title: Interactive Fixed Effects Estimator for Balanced Panel Data
+Version: 0.1.0
+Authors@R: person("Binzhi", "Chen",
+                  email = "Binzhi.Chen@essex.ac.uk",
+                  role  = c("aut", "cre"))
+Description: Implements the interactive fixed effects (IFE) panel estimator of
+    Bai (2009) <doi:10.3982/ECTA6135> with analytical standard errors
+    (homoskedastic, HC1 robust, and cluster-robust by unit). Supports asymptotic
+    bias correction for large panels (Bai 2009) and a dynamic extension for
+    predetermined regressors (Moon and Weidner 2017
+    <doi:10.1017/S0266466615000298>). Includes information-criterion-based
+    factor number selection (Bai and Ng 2002 <doi:10.1111/1468-0262.00273>).
+    All computations use base R only with no external dependencies.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends: R (>= 3.5.0)
+Imports: stats
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+URL: https://github.com/USERNAME/xtife
+BugReports: https://github.com/USERNAME/xtife/issues
