@@ -6,7 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <!-- badges: end -->
 
-`xtife` provides a pure base-R implementation of the **Interactive Fixed Effects (IFE)** panel estimator of Bai (2009) with full analytical standard errors, asymptotic bias correction, and information-criterion-based factor number selection. No external dependencies beyond base R are required.
+`xtife` provides a pure base-R implementation of the **Interactive Fixed Effects (IFE)** panel estimator of Bai (2009) with full analytical standard errors, asymptotic bias correction, and information-criterion-based factor number selection. No external dependencies beyond base R are required. 
+For a comprehensive review about interactive fixed effect, please refer to Ditzen, J., & Karavias, Y. (2025).
 
 ---
 
@@ -175,10 +176,11 @@ Bai, J. (2009). Panel data models with interactive fixed effects. *Econometrica*
 
 Bai, J. and Ng, S. (2002). Determining the number of factors in approximate factor models. *Econometrica*, 70(1), 191–221. [doi:10.1111/1468-0262.00273](https://doi.org/10.1111/1468-0262.00273)
 
-Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with interactive fixed effects. *Econometric Theory*, 33, 158–195. [doi:10.1017/S0266466615000298](https://doi.org/10.1017/S0266466615000298)
-
 Baltagi, B.H. (1995). *Econometric Analysis of Panel Data*. Wiley.
 
+Ditzen, J., & Karavias, Y. (2025). Interactive, Grouped and Non-separable Fixed Effects: A Practitioner's Guide to the New Panel Data Econometrics. arXiv preprint arXiv:2507.19099. https://doi.org/10.48550/arXiv.2507.19099
+
+Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with interactive fixed effects. *Econometric Theory*, 33, 158–195. [doi:0.1017/S0266466615000328](https://doi.org/10.1017/S0266466615000328)
 ---
 
 ## License
