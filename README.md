@@ -181,6 +181,7 @@ Baltagi, B.H. (1995). *Econometric Analysis of Panel Data*. Wiley.
 Ditzen, J., & Karavias, Y. (2025). Interactive, Grouped and Non-separable Fixed Effects: A Practitioner's Guide to the New Panel Data Econometrics. arXiv preprint arXiv:2507.19099. https://doi.org/10.48550/arXiv.2507.19099
 
 Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with interactive fixed effects. *Econometric Theory*, 33, 158–195. [doi:0.1017/S0266466615000328](https://doi.org/10.1017/S0266466615000328)
+
 ---
 
 ## License
