@@ -25,5 +25,5 @@ Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
-URL: https://github.com/USERNAME/xtife
-BugReports: https://github.com/USERNAME/xtife/issues
+URL: https://github.com/Rickchen0910/xtife
+BugReports: https://github.com/Rickchen0910/xtife/issues
