@@ -3,7 +3,7 @@
 <!-- badges: start -->
 [![R CMD Check](https://github.com/Rickchen0910/xtife/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/Rickchen0910/xtife/actions)
 [![CRAN status](https://www.r-pkg.org/badges/version/xtife)](https://CRAN.R-project.org/package=xtife)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v2/v3](https://img.shields.io/badge/License-GPL%20v2%2Fv3-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 <!-- badges: end -->
 
 `xtife` provides a pure base-R implementation of the **Interactive Fixed Effects (IFE)** panel estimator of Bai (2009) with full analytical standard errors, asymptotic bias correction, and information-criterion-based factor number selection. No external dependencies beyond base R are required. 
@@ -186,4 +186,4 @@ Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with i
 
 ## License
 
-MIT © 2026 Binzhi Chen
+GPL-2 | GPL-3 © 2026 Binzhi Chen
