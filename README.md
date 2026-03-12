@@ -170,6 +170,34 @@ fit0 <- ife(sales ~ price, data = cigar,
 
 ---
 
+# About
+
+### Author
+Binzhi Chen (University of Essex)
+
+Email: [Binzhi.Chen9@gmail.com](Binzhi.Chen9@gmail.com)
+
+Web: [https://sites.google.com/view/binzhichen/home](https://sites.google.com/view/binzhichen/home)
+
+
+### Citation
+
+Please cite as follows:
+
+Chen, B. (2026). xtife: Interactive Fixed Effects Estimator for Balanced Panel Data.
+R package version 0.1.0. https://github.com/Rickchen0910/xtife.
+
+Or
+
+@Manual{xtife,
+  title  = {{xtife}: Interactive Fixed Effects Estimator for Balanced Panel Data},
+  author = {Binzhi Chen},
+  year   = {2026},
+  note   = {R package version 0.1.0},
+  url    = {https://github.com/Rickchen0910/xtife},
+}
+
+
 ## References
 
 Bai, J. (2009). Panel data models with interactive fixed effects. *Econometrica*, 77(4), 1229–1279. [doi:10.3982/ECTA6135](https://doi.org/10.3982/ECTA6135)
