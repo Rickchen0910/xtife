@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.compute_ic}
 \alias{.compute_ic}
-\title{Compute IC criteria for a given r (internal)}
+\title{Compute Information Criteria for a Given Number of Factors (Internal)}
 \usage{
 .compute_ic(V_r, r, N, T, p, force)
 }
@@ -21,16 +21,12 @@
 named list: IC1, IC2, IC3 (Bai & Ng 2002), IC_bic and PC (Bai 2009/fect)
 }
 \description{
-Implements Bai and Ng (2002) Proposition 1 criteria (IC1, IC2, IC3) applied
-to IFE residuals as suggested by Bai (2009) Section 9.4, plus the
-fect-package BIC-style IC and PC criterion (from src/ife.cpp lines 196-224).
+Evaluates five information criteria for a fitted IFE model with
+\code{r} factors, given the mean squared residual \code{V_r}. Returns IC1, IC2, and IC3
+from Bai and Ng (2002) Proposition 1 (ICp1/ICp2/ICp3), applied to IFE
+residuals as suggested by Bai (2009) Section 9.4, plus a BIC-style criterion
+(\code{IC_bic}) and a small-sample-corrected prediction criterion (\code{PC}) as
+implemented in the \pkg{fect} package (C++ source, lines 196--224).
+Called once per candidate \code{r} inside \code{ife_select_r()}.
 }
-\details{
-NOTE on attribution:
-IC1/IC2/IC3 penalty structures originate from Bai and Ng (2002),
-"Determining the Number of Factors in Approximate Factor Models,"
-Econometrica 70(1), 191-221, Proposition 1 (ICp1/ICp2/ICp3).
-Bai (2009) Section 9.4 states the analogous IC(k) and CP(k) for IFE
-models and notes that the Bai-Ng (2002) analysis "can be amended to
-our current setting."  The fect package (ife.cpp) applies both sets.
-}
+\keyword{internal}

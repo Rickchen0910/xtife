@@ -1,6 +1,6 @@
-#' US Cigarette Demand Panel (Baltagi 1995)
+#' @title Dataset on US Cigarette Demand Panel
 #'
-#' Balanced panel of cigarette sales and prices across 46 US states
+#' @description Balanced panel of cigarette sales and prices across 46 US states
 #' for 30 years (1963--1992). Originally used in Baltagi (1995) and
 #' widely used as a benchmark dataset for panel estimators.
 #'

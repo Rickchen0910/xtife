@@ -223,6 +223,6 @@ doi:[10.1111/1468-0262.00273](https://doi.org/10.1111/1468-0262.00273)
 
 Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models
 with interactive fixed effects. *Econometric Theory*, 33, 158--195.
-doi:[10.1017/S0266466615000298](https://doi.org/10.1017/S0266466615000298)
+doi:[doi:0.1017/S0266466615000328](https://doi.org/10.1017/S0266466615000328)
 
 Baltagi, B.H. (1995). *Econometric Analysis of Panel Data*. Wiley.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.bias_correct}
 \alias{.bias_correct}
-\title{Compute bias-corrected IFE coefficients (internal)}
+\title{Compute Bias-Corrected IFE Coefficients (Bai 2009)}
 \usage{
 .bias_correct(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde, e_mat, N, T, p, r)
 }
@@ -28,14 +28,14 @@ B_hat    p-vector: estimated cross-section bias term (pre-scaling by 1/N)
 C_hat    p-vector: estimated time-heteroskedasticity bias term (pre-scaling by 1/T)
 }
 \description{
-Implements the two-term bias correction from Bai (2009) Theorems 7.1/7.2:
-beta_dagger = beta_hat - B_hat/N - C_hat/T
+Applies the two-term asymptotic bias correction from Bai (2009)
+Theorems 7.1 and 7.2 to the raw IFE coefficient vector:
+\deqn{\hat{\beta}^\dagger = \hat{\beta} - \hat{B}/N - \hat{C}/T}
+where \eqn{\hat{B}} corrects for cross-sectional heteroskedasticity
+(Equation 17) and \eqn{\hat{C}} corrects for time-varying heteroskedasticity
+(Equation 19). Both terms require \eqn{T/N^2 \to 0} and \eqn{N/T^2 \to 0}
+respectively (Theorem 7.2). For panels of the scale used in the package
+examples (\eqn{N \approx 50}, \eqn{T \approx 30}) both conditions hold
+approximately.
 }
-\details{
-B_hat corrects for cross-section/unit heteroskedasticity (Eq. 17).
-C_hat corrects for time-varying heteroskedasticity (Eq. 19).
-
-Validity: Theorem 7.1 (B_hat only): requires T/N^2 -> 0.
-Theorem 7.2 (B_hat + C_hat): requires T/N^2 -> 0 AND N/T^2 -> 0.
-Both are applied here. For cigar-scale panels (N~50, T~30) both conditions hold.
-}
+\keyword{internal}

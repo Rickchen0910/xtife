@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{ife}
 \alias{ife}
-\title{Estimate Interactive Fixed Effects model (Bai 2009)}
+\title{Estimate Interactive Fixed Effects Model (Bai 2009)}
 \usage{
 ife(
   formula,

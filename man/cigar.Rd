@@ -3,7 +3,7 @@
 \docType{data}
 \name{cigar}
 \alias{cigar}
-\title{US Cigarette Demand Panel (Baltagi 1995)}
+\title{Dataset on US Cigarette Demand Panel}
 \format{
 A data frame with 1,380 rows and 9 variables:
 \describe{

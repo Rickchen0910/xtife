@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{ife_select_r}
 \alias{ife_select_r}
-\title{Select the number of factors r via information criteria}
+\title{Select the Number of Factors via Information Criteria}
 \usage{
 ife_select_r(
   formula,
@@ -39,11 +39,14 @@ to the console. Set to \code{FALSE} for silent operation.}
 integer vector giving the IC-minimising r for each criterion).
 }
 \description{
-Fits the IFE model for r = 0, 1, ..., \code{r_max} and computes three
-information criteria from Bai and Ng (2002) Proposition 1 (IC1, IC2, IC3),
-applied to IFE residuals per Bai (2009) Section 9.4, plus the BIC-style IC
-and small-sample-corrected PC from Bai (2009).
-The criterion-minimising r is flagged with a \code{"*"} in the printed table.
+Fits the IFE model for r = 0, 1, ..., \code{r_max} and evaluates
+five information criteria at each value of r. Returns IC1, IC2, and IC3
+from Bai and Ng (2002) Proposition 1, applied to IFE residuals per Bai
+(2009) Section 9.4, plus a BIC-style penalty (\code{IC_bic}) and a
+small-sample-corrected prediction criterion (\code{PC}) from Bai (2009).
+The criterion-minimising r for each IC is flagged with \code{"*"} in the
+printed table, and a data-driven recommendation (favouring \code{IC_bic} when
+the Bai-Ng criteria decrease monotonically) is displayed.
 }
 \examples{
 \donttest{

@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.ife_fit}
 \alias{.ife_fit}
-\title{Core IFE estimation: SVD-based alternating projections}
+\title{Core IFE Estimation via SVD-Based Alternating Projections}
 \usage{
 .ife_fit(Y_dm, X_dm, r, tol = 1e-09, max_iter = 10000L, method = "static")
 }
@@ -30,5 +30,14 @@ n_iter     number of iterations used
 converged  logical
 }
 \description{
-Core IFE estimation: SVD-based alternating projections
+Estimates the Interactive Fixed Effects model by iterating
+between an OLS step for the regression coefficients (given current factor
+estimates) and an SVD step for the factor matrix (given current
+coefficients). Convergence is declared when the maximum absolute change in
+the coefficient vector falls below \code{tol}. Handles the degenerate case
+\code{r = 0} (standard OLS on demeaned data) as a special case. Supports
+both the strictly-exogenous (\code{"static"}, Bai 2009) and the
+predetermined-regressor (\code{"dynamic"}, Moon and Weidner 2017) projection
+schemes.
 }
+\keyword{internal}

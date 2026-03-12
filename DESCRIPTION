@@ -2,8 +2,9 @@ Package: xtife
 Type: Package
 Title: Interactive Fixed Effects Estimator for Balanced Panel Data
 Version: 0.1.0
+Date: 2026-03-12
 Authors@R: person("Binzhi", "Chen",
-                  email = "Binzhi.Chen@essex.ac.uk",
+                  email = "Binzhi.Chen9@gmail.com",
                   role  = c("aut", "cre"))
 Description: Implements the interactive fixed effects (IFE) panel estimator of
     Bai (2009) <doi:10.3982/ECTA6135> with analytical standard errors
@@ -13,7 +14,7 @@ Description: Implements the interactive fixed effects (IFE) panel estimator of
     <doi:0.1017/S0266466615000328>). Includes information-criterion-based
     factor number selection (Bai and Ng 2002 <doi:10.1111/1468-0262.00273>).
     All computations use base R only with no external dependencies.
-License: MIT + file LICENSE
+License: GPL-2 | GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.bias_correct_mw}
 \alias{.bias_correct_mw}
-\title{Compute bias-corrected coefficients for the Dynamic IFE estimator (internal)}
+\title{Compute Bias-Corrected Coefficients for the Dynamic IFE Estimator}
 \usage{
 .bias_correct_mw(
   beta,
@@ -43,15 +43,14 @@ B2_hat   p-vector: cross-section heteroscedasticity bias (same as Bai B_hat)
 B3_hat   p-vector: time heteroscedasticity bias (same as Bai C_hat)
 }
 \description{
-Implements the three-term bias correction from Moon & Weidner (2017) Corollary 4.5:
-beta* = beta + W^(-1)(B1_hat/T + B2_hat/N + B3_hat/T)
+Applies the three-term asymptotic bias correction from Moon and
+Weidner (2017) Corollary 4.5 to the raw dynamic IFE coefficient vector:
+\deqn{\hat{\beta}^* = \hat{\beta} + W^{-1}\!\left(\hat{B}_1/T + \hat{B}_2/N + \hat{B}_3/T\right)}
+where \eqn{\hat{B}_1} corrects for the Nickell-type bias arising from
+predetermined (lagged) regressors using a lag-truncation bandwidth \code{M1},
+and \eqn{\hat{B}_2}, \eqn{\hat{B}_3} correct for cross-sectional and
+time-series heteroskedasticity respectively. The latter two terms are
+algebraically equivalent to the Bai (2009) \eqn{\hat{B}} and \eqn{\hat{C}}
+terms.
 }
-\details{
-B1_hat corrects for predetermined regressors (dynamic/Nickell-type bias).
-B2_hat and B3_hat correct for cross-section and time-series heteroscedasticity
-respectively -- these are algebraically equivalent to Bai (2009) B_hat and C_hat
-(verified: trunc(res*res',1,1) keeps the diagonal only, same as sigma2_i in Bai).
-
-Reference: Moon, H.R. & Weidner, M. (2017). Dynamic linear panel regression models
-with interactive fixed effects. Econometric Theory, 33, 158-195.
-}
+\keyword{internal}

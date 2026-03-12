@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.ife_se}
 \alias{.ife_se}
-\title{Compute standard errors for the IFE estimator}
+\title{Compute Standard Errors for the IFE Estimator}
 \usage{
 .ife_se(beta, X_tilde, u_mat, N, T, r, force, se_type)
 }
@@ -27,6 +27,13 @@ vcov_mat   p x p estimated variance-covariance matrix
 df         residual degrees of freedom
 }
 \description{
-Uses the Frisch-Waugh-Lovell sandwich principle.
-The effective regressors X_tilde (factor-projected X) are the basis for inference.
+Constructs the sandwich variance-covariance matrix for the IFE
+coefficient vector using the Frisch-Waugh-Lovell principle. The effective
+regressors are the factor-projected covariates \eqn{\tilde{X}_{it}} (i.e.,
+demeaned X after removing the factor space). Three estimators are supported:
+homoskedastic (\code{"standard"}), HC1 heteroskedasticity-robust (\code{"robust"}), and
+cluster-robust by unit (\code{"cluster"}), following Cameron, Gelbach and Miller
+(2011). Degrees of freedom account for regression coefficients, interactive FE
+parameters, and additive FE parameters.
 }
+\keyword{internal}

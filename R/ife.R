@@ -2,7 +2,14 @@
 # 1.  DEMEANING FOR ADDITIVE FIXED EFFECTS
 # ==============================================================================
 
-#' Demean panel matrices for additive fixed effects
+#' @title Demean Panel Matrices for Additive Fixed Effects
+#'
+#' @description Removes additive unit and/or time fixed effects from a T x N
+#' outcome matrix and a T x N x p covariate array using the within-group
+#' transformation. Supports four specifications: no demeaning (`"none"`),
+#' unit-only (`"unit"`), time-only (`"time"`), and two-way (`"two-way"`).
+#'
+#' @keywords internal
 #'
 #' @param Y_mat  T x N outcome matrix
 #' @param X_arr  T x N x p covariate array  (NULL if p = 0)
@@ -69,7 +76,19 @@
 # 2.  CORE SVD ALTERNATING PROJECTIONS
 # ==============================================================================
 
-#' Core IFE estimation: SVD-based alternating projections
+#' @title Core IFE Estimation via SVD-Based Alternating Projections
+#'
+#' @description Estimates the Interactive Fixed Effects model by iterating
+#' between an OLS step for the regression coefficients (given current factor
+#' estimates) and an SVD step for the factor matrix (given current
+#' coefficients). Convergence is declared when the maximum absolute change in
+#' the coefficient vector falls below \code{tol}. Handles the degenerate case
+#' \code{r = 0} (standard OLS on demeaned data) as a special case. Supports
+#' both the strictly-exogenous (\code{"static"}, Bai 2009) and the
+#' predetermined-regressor (\code{"dynamic"}, Moon and Weidner 2017) projection
+#' schemes.
+#'
+#' @keywords internal
 #'
 #' @param Y_dm   T x N demeaned outcome
 #' @param X_dm   T x N x p demeaned covariate array (or NULL if p = 0)
@@ -266,10 +285,18 @@
 # 3.  STANDARD ERROR COMPUTATION
 # ==============================================================================
 
-#' Compute standard errors for the IFE estimator
+#' @title Compute Standard Errors for the IFE Estimator
 #'
-#' Uses the Frisch-Waugh-Lovell sandwich principle.
-#' The effective regressors X_tilde (factor-projected X) are the basis for inference.
+#' @description Constructs the sandwich variance-covariance matrix for the IFE
+#' coefficient vector using the Frisch-Waugh-Lovell principle. The effective
+#' regressors are the factor-projected covariates \eqn{\tilde{X}_{it}} (i.e.,
+#' demeaned X after removing the factor space). Three estimators are supported:
+#' homoskedastic (`"standard"`), HC1 heteroskedasticity-robust (`"robust"`), and
+#' cluster-robust by unit (`"cluster"`), following Cameron, Gelbach and Miller
+#' (2011). Degrees of freedom account for regression coefficients, interactive FE
+#' parameters, and additive FE parameters.
+#'
+#' @keywords internal
 #'
 #' @param beta       p x 1 coefficient vector
 #' @param X_tilde    T x N x p projected covariate array
@@ -356,19 +383,17 @@
 # 4.  INFORMATION CRITERIA FOR FACTOR NUMBER SELECTION
 # ==============================================================================
 
-#' Compute IC criteria for a given r (internal)
+#' @title Compute Information Criteria for a Given Number of Factors (Internal)
 #'
-#' Implements Bai and Ng (2002) Proposition 1 criteria (IC1, IC2, IC3) applied
-#' to IFE residuals as suggested by Bai (2009) Section 9.4, plus the
-#' fect-package BIC-style IC and PC criterion (from src/ife.cpp lines 196-224).
+#' @description Evaluates five information criteria for a fitted IFE model with
+#' `r` factors, given the mean squared residual `V_r`. Returns IC1, IC2, and IC3
+#' from Bai and Ng (2002) Proposition 1 (ICp1/ICp2/ICp3), applied to IFE
+#' residuals as suggested by Bai (2009) Section 9.4, plus a BIC-style criterion
+#' (`IC_bic`) and a small-sample-corrected prediction criterion (`PC`) as
+#' implemented in the \pkg{fect} package (C++ source, lines 196--224).
+#' Called once per candidate `r` inside `ife_select_r()`.
 #'
-#' NOTE on attribution:
-#'   IC1/IC2/IC3 penalty structures originate from Bai and Ng (2002),
-#'   "Determining the Number of Factors in Approximate Factor Models,"
-#'   Econometrica 70(1), 191-221, Proposition 1 (ICp1/ICp2/ICp3).
-#'   Bai (2009) Section 9.4 states the analogous IC(k) and CP(k) for IFE
-#'   models and notes that the Bai-Ng (2002) analysis "can be amended to
-#'   our current setting."  The fect package (ife.cpp) applies both sets.
+#' @keywords internal
 #'
 #' @param V_r    scalar: mean squared residual = mean(u_mat^2)  (not df-adjusted)
 #' @param r      integer: number of factors
@@ -426,17 +451,19 @@
 # 4b.  BIAS CORRECTION (BAI 2009 SECTION 7)
 # ==============================================================================
 
-#' Compute bias-corrected IFE coefficients (internal)
+#' @title Compute Bias-Corrected IFE Coefficients (Bai 2009)
 #'
-#' Implements the two-term bias correction from Bai (2009) Theorems 7.1/7.2:
-#'   beta_dagger = beta_hat - B_hat/N - C_hat/T
+#' @description Applies the two-term asymptotic bias correction from Bai (2009)
+#' Theorems 7.1 and 7.2 to the raw IFE coefficient vector:
+#' \deqn{\hat{\beta}^\dagger = \hat{\beta} - \hat{B}/N - \hat{C}/T}
+#' where \eqn{\hat{B}} corrects for cross-sectional heteroskedasticity
+#' (Equation 17) and \eqn{\hat{C}} corrects for time-varying heteroskedasticity
+#' (Equation 19). Both terms require \eqn{T/N^2 \to 0} and \eqn{N/T^2 \to 0}
+#' respectively (Theorem 7.2). For panels of the scale used in the package
+#' examples (\eqn{N \approx 50}, \eqn{T \approx 30}) both conditions hold
+#' approximately.
 #'
-#' B_hat corrects for cross-section/unit heteroskedasticity (Eq. 17).
-#' C_hat corrects for time-varying heteroskedasticity (Eq. 19).
-#'
-#' Validity: Theorem 7.1 (B_hat only): requires T/N^2 -> 0.
-#'           Theorem 7.2 (B_hat + C_hat): requires T/N^2 -> 0 AND N/T^2 -> 0.
-#' Both are applied here. For cigar-scale panels (N~50, T~30) both conditions hold.
+#' @keywords internal
 #'
 #' @param beta       p-vector of uncorrected IFE coefficients
 #' @param F_hat      T x r factor matrix (F'F/T = I_r enforced)
@@ -513,18 +540,19 @@
 # 4c.  BIAS CORRECTION -- MOON & WEIDNER (2017) DYNAMIC IFE
 # ==============================================================================
 
-#' Compute bias-corrected coefficients for the Dynamic IFE estimator (internal)
+#' @title Compute Bias-Corrected Coefficients for the Dynamic IFE Estimator
 #'
-#' Implements the three-term bias correction from Moon & Weidner (2017) Corollary 4.5:
-#'   beta* = beta + W^(-1)(B1_hat/T + B2_hat/N + B3_hat/T)
+#' @description Applies the three-term asymptotic bias correction from Moon and
+#' Weidner (2017) Corollary 4.5 to the raw dynamic IFE coefficient vector:
+#' \deqn{\hat{\beta}^* = \hat{\beta} + W^{-1}\!\left(\hat{B}_1/T + \hat{B}_2/N + \hat{B}_3/T\right)}
+#' where \eqn{\hat{B}_1} corrects for the Nickell-type bias arising from
+#' predetermined (lagged) regressors using a lag-truncation bandwidth `M1`,
+#' and \eqn{\hat{B}_2}, \eqn{\hat{B}_3} correct for cross-sectional and
+#' time-series heteroskedasticity respectively. The latter two terms are
+#' algebraically equivalent to the Bai (2009) \eqn{\hat{B}} and \eqn{\hat{C}}
+#' terms.
 #'
-#' B1_hat corrects for predetermined regressors (dynamic/Nickell-type bias).
-#' B2_hat and B3_hat correct for cross-section and time-series heteroscedasticity
-#' respectively -- these are algebraically equivalent to Bai (2009) B_hat and C_hat
-#' (verified: trunc(res*res',1,1) keeps the diagonal only, same as sigma2_i in Bai).
-#'
-#' Reference: Moon, H.R. & Weidner, M. (2017). Dynamic linear panel regression models
-#' with interactive fixed effects. Econometric Theory, 33, 158-195.
+#' @keywords internal
 #'
 #' @param beta       p-vector of uncorrected IFE coefficients
 #' @param F_hat      T x r factor matrix
@@ -596,9 +624,9 @@
 # 5.  USER-FACING WRAPPER
 # ==============================================================================
 
-#' Estimate Interactive Fixed Effects model (Bai 2009)
+#' @title Estimate Interactive Fixed Effects Model (Bai 2009)
 #'
-#' Fits the panel model
+#' @description Fits the panel model
 #' \deqn{y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i'F_t + u_{it}}
 #' for balanced panel data with analytical standard errors.
 #'
@@ -946,7 +974,14 @@ ife <- function(formula,
 # 6.  PRINT METHOD
 # ==============================================================================
 
-#' Print an ife object
+#' @title Print an IFE Model Summary
+#'
+#' @description Prints a formatted summary of an object of class `"ife"`,
+#' including panel dimensions, number of factors, additive fixed effect
+#' specification, SE type, and a coefficient table with standard errors,
+#' t-statistics, p-values, and 95% confidence intervals. If bias correction
+#' was applied, bias terms are also reported. Information criteria are printed
+#' when the object contains them (i.e., when called from `ife_select_r()`).
 #'
 #' @param x      an object of class `"ife"`
 #' @param digits number of significant digits (default 4)
@@ -954,6 +989,12 @@ ife <- function(formula,
 #'
 #' @return `x` invisibly.
 #' @export
+#'
+#' @examples
+#' data(cigar, package = "xtife")
+#' fit <- ife(sales ~ price, data = cigar, index = c("state", "year"),
+#'            r = 2, force = "two-way", se = "standard")
+#' print(fit)
 print.ife <- function(x, digits = 4, ...) {
   cat("\n")
   if (isTRUE(x$method == "dynamic"))
@@ -1067,13 +1108,16 @@ print.ife <- function(x, digits = 4, ...) {
 # 7.  FACTOR NUMBER SELECTION
 # ==============================================================================
 
-#' Select the number of factors r via information criteria
+#' @title Select the Number of Factors via Information Criteria
 #'
-#' Fits the IFE model for r = 0, 1, ..., `r_max` and computes three
-#' information criteria from Bai and Ng (2002) Proposition 1 (IC1, IC2, IC3),
-#' applied to IFE residuals per Bai (2009) Section 9.4, plus the BIC-style IC
-#' and small-sample-corrected PC from Bai (2009).
-#' The criterion-minimising r is flagged with a `"*"` in the printed table.
+#' @description Fits the IFE model for r = 0, 1, ..., `r_max` and evaluates
+#' five information criteria at each value of r. Returns IC1, IC2, and IC3
+#' from Bai and Ng (2002) Proposition 1, applied to IFE residuals per Bai
+#' (2009) Section 9.4, plus a BIC-style penalty (`IC_bic`) and a
+#' small-sample-corrected prediction criterion (`PC`) from Bai (2009).
+#' The criterion-minimising r for each IC is flagged with `"*"` in the
+#' printed table, and a data-driven recommendation (favouring `IC_bic` when
+#' the Bai-Ng criteria decrease monotonically) is displayed.
 #'
 #' @param formula  R formula passed to `ife()`
 #' @param data     long-format data.frame

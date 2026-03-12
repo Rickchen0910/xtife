@@ -2,7 +2,7 @@
 % Please edit documentation in R/ife.R
 \name{.demean_panel}
 \alias{.demean_panel}
-\title{Demean panel matrices for additive fixed effects}
+\title{Demean Panel Matrices for Additive Fixed Effects}
 \usage{
 .demean_panel(Y_mat, X_arr, force)
 }
@@ -22,5 +22,9 @@ alpha_Y  N x 1 unit means of Y (after grand mean removal)
 xi_Y   T x 1 time means of Y  (after grand mean removal)
 }
 \description{
-Demean panel matrices for additive fixed effects
+Removes additive unit and/or time fixed effects from a T x N
+outcome matrix and a T x N x p covariate array using the within-group
+transformation. Supports four specifications: no demeaning (\code{"none"}),
+unit-only (\code{"unit"}), time-only (\code{"time"}), and two-way (\code{"two-way"}).
 }
+\keyword{internal}
