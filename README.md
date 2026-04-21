@@ -175,7 +175,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 ### Author
 Binzhi Chen (University of Essex)
 
-Email: [Binzhi.Chen9@gmail.com](Binzhi.Chen9@gmail.com)
+Email: <Binzhi.Chen9@gmail.com>
 
 Web: [https://sites.google.com/view/binzhichen/home](https://sites.google.com/view/binzhichen/home)
 

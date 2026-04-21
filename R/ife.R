@@ -301,41 +301,41 @@
 #' @param beta       p x 1 coefficient vector
 #' @param X_tilde    T x N x p projected covariate array
 #' @param u_mat      T x N residual matrix from the full model
-#' @param N,T        panel dimensions
+#' @param N,TT       panel dimensions
 #' @param r          number of factors
 #' @param force      additive FE specification (for df computation)
 #' @param se_type    "standard" | "robust" | "cluster"
 #' @return list:
 #'   vcov_mat   p x p estimated variance-covariance matrix
 #'   df         residual degrees of freedom
-.ife_se <- function(beta, X_tilde, u_mat, N, T, r, force, se_type) {
+.ife_se <- function(beta, X_tilde, u_mat, N, TT, r, force, se_type) {
   p <- length(beta)
   if (p == 0L) stop("Cannot compute SE with no covariates.")
 
   # ---  degrees of freedom  ---
-  # Parameter count: p (beta) + r(N+T-r) (interactive FE, Bai 2009 Thm 1)
+  # Parameter count: p (beta) + r(N+TT-r) (interactive FE, Bai 2009 Thm 1)
   # plus additive FE parameters
   fe_dof <- switch(force,
     "none"    = 0L,
     "unit"    = N - 1L,
-    "time"    = T - 1L,
-    "two-way" = N + T - 2L
+    "time"    = TT - 1L,
+    "two-way" = N + TT - 2L
   )
   # total parameters estimated:
-  k_total <- p + r * (N + T - r) + fe_dof
-  df      <- N * T - k_total
+  k_total <- p + r * (N + TT - r) + fe_dof
+  df      <- N * TT - k_total
   if (df <= 0L) stop(
     "Degrees of freedom <= 0. Reduce r or use a larger panel."
   )
 
   # ---  A = X_tilde' X_tilde  (p x p) ---
   # Stack X_tilde into NT x p matrix
-  Xt_long <- matrix(0, T * N, p)
+  Xt_long <- matrix(0, TT * N, p)
   for (k in seq_len(p)) Xt_long[, k] <- as.vector(X_tilde[, , k])
   A <- crossprod(Xt_long)   # p x p
 
   # residual vector (NT x 1), matching row order of X_tilde
-  u_vec <- as.vector(u_mat)  # col-major: obs order is t=1..T for unit 1, then unit 2, ...
+  u_vec <- as.vector(u_mat)  # col-major: obs order is t=1..TT for unit 1, then unit 2, ...
 
   # ---  variance estimation  ---
   if (se_type == "standard") {
@@ -349,26 +349,26 @@
     # Vectorized: B = t(Xt_long) %*% diag(u^2) %*% Xt_long
     B        <- crossprod(Xt_long * u_vec)   # p x p;  u_vec broadcast row-wise
     A_inv    <- solve(A)
-    corr     <- (N * T) / (N * T - p)       # HC1 finite-sample correction
+    corr     <- (N * TT) / (N * TT - p)     # HC1 finite-sample correction
     vcov_mat <- A_inv %*% B %*% A_inv * corr
 
   } else if (se_type == "cluster") {
     # Cluster by unit i.
-    # Score for unit i:  psi_i = sum_{t=1}^{T}  u_it * x_tilde_it  (p x 1)
+    # Score for unit i:  psi_i = sum_{t=1}^{TT}  u_it * x_tilde_it  (p x 1)
     # B = sum_i psi_i psi_i'
     # Small-sample correction: [N/(N-1)] * [(NT-1)/(NT-p)]  (Cameron-Gelbach-Miller 2011)
     B <- matrix(0, p, p)
     for (i in seq_len(N)) {
-      # rows in Xt_long for unit i: indices (i-1)*T + 1 : i*T
+      # rows in Xt_long for unit i: indices (i-1)*TT + 1 : i*TT
       # (col-major vectorization: units are columns, so unit i is column i)
-      idx     <- (i - 1L) * T + seq_len(T)   # T indices for unit i
-      Xt_i    <- Xt_long[idx, , drop = FALSE] # T x p
-      u_i     <- u_vec[idx]                   # T x 1
+      idx     <- (i - 1L) * TT + seq_len(TT) # TT indices for unit i
+      Xt_i    <- Xt_long[idx, , drop = FALSE] # TT x p
+      u_i     <- u_vec[idx]                   # TT x 1
       psi_i   <- crossprod(Xt_i, u_i)         # p x 1 (= t(Xt_i) %*% u_i)
       B       <- B + tcrossprod(psi_i)         # p x p outer product
     }
     A_inv    <- solve(A)
-    corr     <- (N / (N - 1)) * ((N * T - 1) / (N * T - p))
+    corr     <- (N / (N - 1)) * ((N * TT - 1) / (N * TT - p))
     vcov_mat <- A_inv %*% B %*% A_inv * corr
 
   } else {
@@ -397,19 +397,19 @@
 #'
 #' @param V_r    scalar: mean squared residual = mean(u_mat^2)  (not df-adjusted)
 #' @param r      integer: number of factors
-#' @param N,T    panel dimensions
+#' @param N,TT   panel dimensions
 #' @param p      number of covariates
 #' @param force  additive FE spec (for np calculation)
 #' @return named list: IC1, IC2, IC3 (Bai & Ng 2002), IC_bic and PC (Bai 2009/fect)
-.compute_ic <- function(V_r, r, N, T, p, force) {
-  CNT <- min(sqrt(N), sqrt(T))
+.compute_ic <- function(V_r, r, N, TT, p, force) {
+  CNT <- min(sqrt(N), sqrt(TT))
 
   # --- Bai and Ng (2002) Proposition 1 penalty functions (ICp1/ICp2/ICp3) ---
   # Applied here to IFE residuals per Bai (2009) Section 9.4.
   # g1: ICp1 penalty
-  g1 <- (N + T) / (N * T) * log(N * T / (N + T))
+  g1 <- (N + TT) / (N * TT) * log(N * TT / (N + TT))
   # g2: uses C_NT as the divergence rate
-  g2 <- (N + T) / (N * T) * log(CNT^2)
+  g2 <- (N + TT) / (N * TT) * log(CNT^2)
   # g3: slower penalty, tends to select fewer factors
   g3 <- log(CNT^2) / (CNT^2)
 
@@ -422,25 +422,25 @@
   fe_dof <- switch(force,
     "none"    = 0L,
     "unit"    = N - 1L,
-    "time"    = T - 1L,
-    "two-way" = N + T - 2L
+    "time"    = TT - 1L,
+    "two-way" = N + TT - 2L
   )
-  np      <- r * (N + T - r) + p + 1L + fe_dof
-  df_fect <- N * T - np
-  sigma2_adj <- if (df_fect > 0) V_r * N * T / df_fect else NA_real_
+  np      <- r * (N + TT - r) + p + 1L + fe_dof
+  df_fect <- N * TT - np
+  sigma2_adj <- if (df_fect > 0) V_r * N * TT / df_fect else NA_real_
 
   IC_bic <- if (!is.na(sigma2_adj))
-    log(sigma2_adj) + np * log(N * T) / (N * T)
+    log(sigma2_adj) + np * log(N * TT) / (N * TT)
   else NA_real_
 
   # --- fect PC criterion (src/ife.cpp lines 209-224) ---
   # Small-sample inflation factor C (expands penalty when N < 60 or T < 60)
   m1 <- max(0L, 60L - N)
-  m2 <- max(0L, 60L - T)
-  C_ss <- (N + m1) * (T + m2) / (N * T)
+  m2 <- max(0L, 60L - TT)
+  C_ss <- (N + m1) * (TT + m2) / (N * TT)
 
   PC <- if (!is.na(sigma2_adj))
-    V_r + r * sigma2_adj * C_ss * (N + T) / (N * T) * log(N * T / (N + T))
+    V_r + r * sigma2_adj * C_ss * (N + TT) / (N * TT) * log(N * TT / (N + TT))
   else NA_real_
 
   list(IC1 = IC1, IC2 = IC2, IC3 = IC3, IC_bic = IC_bic, PC = PC)
@@ -471,19 +471,19 @@
 #' @param X_dm_arr   T x N x p array of demeaned covariates (after additive FE)
 #' @param X_tilde    T x N x p array of factor-projected demeaned X
 #' @param e_mat      T x N matrix of full-model residuals (from .ife_fit)
-#' @param N,T,p,r   panel dimensions
+#' @param N,TT,p,r  panel dimensions
 #' @return list with elements:
 #'   beta_bc  p-vector: bias-corrected coefficients
 #'   B_hat    p-vector: estimated cross-section bias term (pre-scaling by 1/N)
 #'   C_hat    p-vector: estimated time-heteroskedasticity bias term (pre-scaling by 1/T)
 .bias_correct <- function(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde, e_mat,
-                          N, T, p, r) {
+                          N, TT, p, r) {
 
   # D0^{-1} = (A/NT)^{-1} where A = X_tilde'X_tilde  (same as in .ife_se)
-  Xt_long <- matrix(0, T * N, p)
+  Xt_long <- matrix(0, TT * N, p)
   for (k in seq_len(p)) Xt_long[, k] <- as.vector(X_tilde[, , k])
   A      <- crossprod(Xt_long)           # p x p
-  D0_inv <- solve(A / (N * T))           # (N*T) * solve(A)
+  D0_inv <- solve(A / (N * TT))          # (N*TT) * solve(A)
 
   # G = (Lambda'Lambda/N)^{-1},  r x r
   G     <- solve(crossprod(Lambda_hat) / N)
@@ -491,8 +491,8 @@
   A_mat <- Lambda_hat %*% G %*% t(Lambda_hat)
 
   # V_arr[t, i, k] = (1/N) * sum_j a_{ij} * X_dm[t, j, k]
-  # Matrix form for covariate k: V_k = X_dm_arr[,,k] %*% A_mat / N  (T x N)
-  V_arr <- array(0, dim = c(T, N, p))
+  # Matrix form for covariate k: V_k = X_dm_arr[,,k] %*% A_mat / N  (TT x N)
+  V_arr <- array(0, dim = c(TT, N, p))
   for (k in seq_len(p)) {
     V_arr[, , k] <- X_dm_arr[, , k] %*% A_mat / N
   }
@@ -506,7 +506,7 @@
     diff_i  <- X_dm_arr[, i, ] - V_arr[, i, ]              # T x p
     # contribution: (p x T)(T x r)/T = p x r; then (p x r)(r x r)(r x 1)*scalar = p x 1
     # Parenthesise /T before next %*% to avoid R operator-precedence issue
-    contrib <- (t(diff_i) %*% F_hat / T) %*% G %*% Lambda_hat[i, ] * sigma2_i[i]
+    contrib <- (t(diff_i) %*% F_hat / TT) %*% G %*% Lambda_hat[i, ] * sigma2_i[i]
     sum_B   <- sum_B + as.vector(contrib)
   }
   B_hat <- -D0_inv %*% (sum_B / N)      # p x 1
@@ -517,7 +517,7 @@
   # M_F * Omega * F = Omega*F - (1/T)*F*(F'*Omega*F)   [T x r]
   # Parenthesise (F_hat / T) to avoid R precedence issue: F/T %*% ... parses wrong
   MF_Omega_F <- (omega * F_hat) -
-                (F_hat / T) %*% (t(F_hat) %*% (omega * F_hat))
+                (F_hat / TT) %*% (t(F_hat) %*% (omega * F_hat))
 
   sum_C <- numeric(p)
   for (i in seq_len(N)) {
@@ -528,7 +528,7 @@
   }
   C_hat <- -D0_inv %*% (sum_C / N)      # p x 1
 
-  beta_bc <- beta - as.vector(B_hat) / N - as.vector(C_hat) / T
+  beta_bc <- beta - as.vector(B_hat) / N - as.vector(C_hat) / TT
 
   list(beta_bc = beta_bc,
        B_hat   = as.vector(B_hat),
@@ -560,7 +560,7 @@
 #' @param X_dm_arr   T x N x p array of demeaned covariates (after additive FE)
 #' @param X_tilde    T x N x p double-projected covariates (M_Lambda M_F applied)
 #' @param e_mat      T x N matrix of full-model residuals
-#' @param N,T,p,r    panel dimensions
+#' @param N,TT,p,r   panel dimensions
 #' @param M1         lag bandwidth for B1 (number of lags to include; default 1)
 #' @return list:
 #'   beta_bc  p-vector: bias-corrected coefficients
@@ -568,17 +568,17 @@
 #'   B2_hat   p-vector: cross-section heteroscedasticity bias (same as Bai B_hat)
 #'   B3_hat   p-vector: time heteroscedasticity bias (same as Bai C_hat)
 .bias_correct_mw <- function(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde,
-                              e_mat, N, T, p, r, M1 = 1L) {
+                              e_mat, N, TT, p, r, M1 = 1L) {
 
   # --- B2 and B3: reuse Bai (2009) formulae (algebraically equivalent to MW) ---
   # Math-verifier confirmed: trunc(res*res',1,1) in MW B2 keeps diagonal only =
   # sigma2_i used in Bai B_hat.  trunc(res'*res,1,1) in MW B3 (M2=0) keeps
   # diagonal only = omega_t used in Bai C_hat.
   bc_bai <- .bias_correct(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde,
-                           e_mat, N, T, p, r)
+                           e_mat, N, TT, p, r)
 
   # D0_inv = (A/NT)^{-1} where A = X_tilde'X_tilde (double-projected)
-  Xt_long <- matrix(0, T * N, p)
+  Xt_long <- matrix(0, TT * N, p)
   for (k in seq_len(p)) Xt_long[, k] <- as.vector(X_tilde[, , k])
   D0_inv <- solve(crossprod(Xt_long) / (N * T))      # p x p
 
@@ -599,13 +599,13 @@
     # cross_k[t,s] = sum_i e_{it} * X_{k,is}  (T x T)
     cross_k <- e_mat %*% t(X_k)                       # (T x N)(N x T) = T x T
     # Keep only upper-triangle entries with lag s-t in {1, ..., M1}
-    cross_trunc <- matrix(0, T, T)
+    cross_trunc <- matrix(0, TT, TT)
     for (lag in seq_len(M1)) {
-      t_idx <- seq_len(T - lag)
+      t_idx <- seq_len(TT - lag)
       cross_trunc[cbind(t_idx, t_idx + lag)] <- cross_k[cbind(t_idx, t_idx + lag)]
     }
     # trace(Pf %*% cross_trunc) = sum(Pf * cross_trunc) since Pf symmetric
-    B1_vec[k] <- sum(Pf * cross_trunc) / (N * T)
+    B1_vec[k] <- sum(Pf * cross_trunc) / (N * TT)
   }
 
   # Apply all three corrections:
@@ -678,7 +678,7 @@
 #'
 #' Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models
 #' with interactive fixed effects. *Econometric Theory*, 33, 158--195.
-#' \doi{10.1017/S0266466615000298}
+#' \doi{10.1017/S0266466615000328}
 #'
 #' Bai, J. and Ng, S. (2002). Determining the number of factors in approximate
 #' factor models. *Econometrica*, 70(1), 191--221. \doi{10.1111/1468-0262.00273}
@@ -807,7 +807,7 @@ ife <- function(formula,
   sigma2 <- sum(u_mat^2) / (N * T)    # raw error variance (= V_r for IC)
 
   # ---- information criteria (Bai 2009 + fect) ----
-  ic <- .compute_ic(V_r = sigma2, r = r, N = N, T = T, p = p, force = force)
+  ic <- .compute_ic(V_r = sigma2, r = r, N = N, TT = T, p = p, force = force)
 
   # ---- standard errors ----
   se_list <- NULL
@@ -816,7 +816,7 @@ ife <- function(formula,
       beta    = fit$beta,
       X_tilde = fit$X_tilde,
       u_mat   = u_mat,
-      N = N, T = T, r = r,
+      N = N, TT = T, r = r,
       force   = force,
       se_type = se
     )
@@ -842,7 +842,7 @@ ife <- function(formula,
         X_dm_arr   = X_dm,
         X_tilde    = fit$X_tilde,
         e_mat      = u_mat,
-        N = N, T = T, p = p, r = r
+        N = N, TT = T, p = p, r = r
       )
       B_hat_out <- bc$B_hat;  names(B_hat_out) <- x_names
       C_hat_out <- bc$C_hat;  names(C_hat_out) <- x_names
@@ -855,7 +855,7 @@ ife <- function(formula,
         X_dm_arr   = X_dm,
         X_tilde    = fit$X_tilde,
         e_mat      = u_mat,
-        N = N, T = T, p = p, r = r, M1 = M1
+        N = N, TT = T, p = p, r = r, M1 = M1
       )
       B1_hat_out <- bc$B1_hat;  names(B1_hat_out) <- x_names
       B2_hat_out <- bc$B2_hat;  names(B2_hat_out) <- x_names
@@ -876,7 +876,7 @@ ife <- function(formula,
       beta    = bc$beta_bc,
       X_tilde = fit$X_tilde,
       u_mat   = u_mat_bc,
-      N = N, T = T, r = r,
+      N = N, TT = T, r = r,
       force   = force,
       se_type = se
     )
@@ -1225,7 +1225,7 @@ ife_select_r <- function(formula,
     conv_vec[i] <- fit_i$converged
     V_r_i       <- mean(fit_i$e_mat^2)
     V_r_vec[i]  <- V_r_i
-    ic_i        <- .compute_ic(V_r = V_r_i, r = r_i, N = N, T = T, p = p, force = force)
+    ic_i        <- .compute_ic(V_r = V_r_i, r = r_i, N = N, TT = T, p = p, force = force)
     IC1_vec[i]  <- ic_i$IC1
     IC2_vec[i]  <- ic_i$IC2
     IC3_vec[i]  <- ic_i$IC3

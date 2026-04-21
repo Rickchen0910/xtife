@@ -12,7 +12,7 @@
   X_tilde,
   e_mat,
   N,
-  T,
+  TT,
   p,
   r,
   M1 = 1L
@@ -31,7 +31,7 @@
 
 \item{e_mat}{T x N matrix of full-model residuals}
 
-\item{N, T, p, r}{panel dimensions}
+\item{N, TT, p, r}{panel dimensions}
 
 \item{M1}{lag bandwidth for B1 (number of lags to include; default 1)}
 }

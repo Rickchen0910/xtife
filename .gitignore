@@ -1,0 +1,9 @@
+.Rhistory
+.RData
+.Ruserdata
+/doc/
+/Meta/
+/inst/doc/
+*.tar.gz
+*.o
+*.so

@@ -4,7 +4,7 @@
 \alias{.bias_correct}
 \title{Compute Bias-Corrected IFE Coefficients (Bai 2009)}
 \usage{
-.bias_correct(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde, e_mat, N, T, p, r)
+.bias_correct(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde, e_mat, N, TT, p, r)
 }
 \arguments{
 \item{beta}{p-vector of uncorrected IFE coefficients}
@@ -19,7 +19,7 @@
 
 \item{e_mat}{T x N matrix of full-model residuals (from .ife_fit)}
 
-\item{N, T, p, r}{panel dimensions}
+\item{N, TT, p, r}{panel dimensions}
 }
 \value{
 list with elements:

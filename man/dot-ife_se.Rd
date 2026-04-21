@@ -4,7 +4,7 @@
 \alias{.ife_se}
 \title{Compute Standard Errors for the IFE Estimator}
 \usage{
-.ife_se(beta, X_tilde, u_mat, N, T, r, force, se_type)
+.ife_se(beta, X_tilde, u_mat, N, TT, r, force, se_type)
 }
 \arguments{
 \item{beta}{p x 1 coefficient vector}
@@ -13,7 +13,7 @@
 
 \item{u_mat}{T x N residual matrix from the full model}
 
-\item{N, T}{panel dimensions}
+\item{N, TT}{panel dimensions}
 
 \item{r}{number of factors}
 

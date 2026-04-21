@@ -90,7 +90,7 @@ Bai, J. (2009). Panel data models with interactive fixed effects.
 
 Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models
 with interactive fixed effects. \emph{Econometric Theory}, 33, 158--195.
-\doi{10.1017/S0266466615000298}
+\doi{10.1017/S0266466615000328}
 
 Bai, J. and Ng, S. (2002). Determining the number of factors in approximate
 factor models. \emph{Econometrica}, 70(1), 191--221. \doi{10.1111/1468-0262.00273}

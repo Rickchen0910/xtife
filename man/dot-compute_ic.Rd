@@ -4,14 +4,14 @@
 \alias{.compute_ic}
 \title{Compute Information Criteria for a Given Number of Factors (Internal)}
 \usage{
-.compute_ic(V_r, r, N, T, p, force)
+.compute_ic(V_r, r, N, TT, p, force)
 }
 \arguments{
 \item{V_r}{scalar: mean squared residual = mean(u_mat^2)  (not df-adjusted)}
 
 \item{r}{integer: number of factors}
 
-\item{N, T}{panel dimensions}
+\item{N, TT}{panel dimensions}
 
 \item{p}{number of covariates}
 

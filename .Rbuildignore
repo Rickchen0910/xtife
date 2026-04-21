@@ -1,2 +1,4 @@
 ^data-raw$
 ^\.Rbuildignore$
+^doc$
+^Meta$
