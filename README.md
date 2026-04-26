@@ -185,7 +185,7 @@ Web: [https://sites.google.com/view/binzhichen/home](https://sites.google.com/vi
 Please cite as follows:
 
 Chen, B. (2026). xtife: Interactive Fixed Effects Estimator for Balanced Panel Data.
-R package version 0.1.0. https://github.com/Rickchen0910/xtife.
+R package version 0.1.3. https://CRAN.R-project.org/package=xtife.
 
 Or
 
@@ -193,8 +193,8 @@ Or
   title  = {{xtife}: Interactive Fixed Effects Estimator for Balanced Panel Data},
   author = {Binzhi Chen},
   year   = {2026},
-  note   = {R package version 0.1.0},
-  url    = {https://github.com/Rickchen0910/xtife},
+  note   = {R package version 0.1.3},
+  url    = {https://CRAN.R-project.org/package=xtife},
 }
 
 
