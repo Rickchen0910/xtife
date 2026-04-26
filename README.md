@@ -38,7 +38,7 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 ## Installation
 
 ```r
-# From CRAN (once available)
+# From CRAN
 install.packages("xtife")
 
 # Development version from GitHub
