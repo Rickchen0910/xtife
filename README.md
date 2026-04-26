@@ -6,8 +6,8 @@
 [![License: GPL v2/v3](https://img.shields.io/badge/License-GPL%20v2%2Fv3-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 <!-- badges: end -->
 
-`xtife` provides a pure base-R implementation of the **Interactive Fixed Effects (IFE)** panel estimator of Bai (2009) with full analytical standard errors, asymptotic bias correction, and information-criterion-based factor number selection. No external dependencies beyond base R are required. 
-For a comprehensive review about interactive fixed effect, please refer to Ditzen, J., & Karavias, Y. (2025).
+`xtife` provides a pure base-R implementation of the **Interactive Fixed Effects (IFE)** panel estimator of [Bai (2009)](https://doi.org/10.3982/ECTA6135) with full analytical standard errors, asymptotic bias correction, and information-criterion-based factor number selection. No external dependencies beyond base R are required.
+For a comprehensive review about interactive fixed effects, please refer to [Ditzen & Karavias (2025)](https://doi.org/10.48550/arXiv.2507.19099).
 
 ---
 
@@ -25,11 +25,11 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 
 | Feature | Details |
 |---------|---------|
-| **Estimator** | Bai (2009) SVD-based alternating projections |
+| **Estimator** | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD-based alternating projections |
 | **Standard errors** | Homoskedastic, HC1 robust, cluster-robust by unit |
-| **Bias correction** | Bai (2009) static; Moon & Weidner (2017) dynamic |
-| **Factor selection** | IC1, IC2, IC3 (Bai & Ng 2002); IC(BIC), PC (Bai 2009) |
-| **Dynamic extension** | Predetermined regressors (Moon & Weidner 2017) |
+| **Bias correction** | [Bai (2009)](https://doi.org/10.3982/ECTA6135) static; [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) dynamic |
+| **Factor selection** | IC1, IC2, IC3 ([Bai & Ng 2002](https://doi.org/10.1111/1468-0262.00273)); IC(BIC), PC ([Bai 2009](https://doi.org/10.3982/ECTA6135)) |
+| **Dynamic extension** | Predetermined regressors ([Moon & Weidner 2017](https://doi.org/10.1017/S0266466615000328)) |
 | **Dependencies** | Base R only (`stats`) |
 | **Panel type** | Balanced panels |
 
@@ -52,7 +52,7 @@ remotes::install_github("Rickchen0910/xtife")
 
 ```r
 library(xtife)
-data(cigar)   # 46 US states x 30 years cigarette panel (Baltagi 1995)
+data(cigar)   # 46 US states x 30 years cigarette panel (Baltagi 1995, Wiley)
 
 # Fit IFE with r = 2 factors, two-way FE, cluster-robust SE
 fit <- ife(sales ~ price, data = cigar,
@@ -103,7 +103,7 @@ sel <- ife_select_r(sales ~ price, data = cigar,
                     force = "two-way")
 ```
 
-Prints a table of IC1, IC2, IC3 (Bai & Ng 2002), IC(BIC), and PC (Bai 2009) criteria for each candidate $r$. The recommended criterion for panels with $\min(N, T) < 60$ is **IC(BIC)**.
+Prints a table of IC1, IC2, IC3 ([Bai & Ng 2002](https://doi.org/10.1111/1468-0262.00273)), IC(BIC), and PC ([Bai 2009](https://doi.org/10.3982/ECTA6135)) criteria for each candidate $r$. The recommended criterion for panels with $\min(N, T) < 60$ is **IC(BIC)**.
 
 ---
 
@@ -129,8 +129,8 @@ For the cigar panel ($N = 46$, $T = 30$, $T/N \approx 0.65$):
 | Estimator | Price coefficient |
 |-----------|------------------|
 | IFE (r = 2) | −0.5242 |
-| IFE + Bai (2009) bias correction | −0.5309 |
-| IFE dynamic + Moon & Weidner (2017) bias correction | −0.5343 |
+| IFE + [Bai (2009)](https://doi.org/10.3982/ECTA6135) bias correction | −0.5309 |
+| IFE dynamic + [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) bias correction | −0.5343 |
 
 ---
 
@@ -165,7 +165,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 | `force` | `"two-way"` | Additive FE: `"none"`, `"unit"`, `"time"`, `"two-way"` |
 | `se` | `"standard"` | SE type: `"standard"`, `"robust"`, `"cluster"` |
 | `bias_corr` | `FALSE` | Apply analytical bias correction |
-| `method` | `"static"` | `"static"` (Bai 2009) or `"dynamic"` (Moon & Weidner 2017) |
+| `method` | `"static"` | `"static"` ([Bai 2009](https://doi.org/10.3982/ECTA6135)) or `"dynamic"` ([Moon & Weidner 2017](https://doi.org/10.1017/S0266466615000328)) |
 | `M1` | `1L` | Lag bandwidth for dynamic B1 bias term |
 
 ---
@@ -177,7 +177,7 @@ Binzhi Chen (University of Essex)
 
 Email: <Binzhi.Chen9@gmail.com>
 
-Web: [https://sites.google.com/view/binzhichen/home](https://sites.google.com/view/binzhichen/home)
+Web: [https://rickchen0910.github.io/](https://rickchen0910.github.io/)
 
 
 ### Citation
