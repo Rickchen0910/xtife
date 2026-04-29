@@ -192,3 +192,41 @@ test_that("U8: r=1 converges; SE finite; print runs without error", {
   expect_true(all(is.finite(fit$ci)))
   expect_output(print(fit), "Unbalanced Panel IFE")
 })
+
+
+# ============================================================================
+# Test U9 — TT > N synthetic panel: F'F/TT = I_r guaranteed after SVD fix
+# ============================================================================
+test_that("U9: TT > N unbalanced panel — factor normalisation F'F/TT = I_r", {
+  skip_on_cran()
+
+  set.seed(42L)
+  N_small <- 10L; TT_big <- 30L; r_true <- 2L; beta_true <- 0.5
+
+  F_true <- matrix(rnorm(TT_big * r_true), TT_big, r_true)
+  L_true <- matrix(rnorm(N_small * r_true), N_small, r_true)
+
+  df_full <- expand.grid(unit = seq_len(N_small), time = seq_len(TT_big))
+  df_full$X <- rnorm(nrow(df_full))
+  df_full$u <- rnorm(nrow(df_full), sd = 0.5)
+  # expand.grid varies unit first → matches column-major TT x N layout
+  ft_vals   <- as.vector(F_true %*% t(L_true))
+  df_full$Y <- beta_true * df_full$X + ft_vals + df_full$u
+
+  # Drop 15 % to make unbalanced (TT = 30 > N = 10 still holds after dropout)
+  set.seed(43L)
+  keep   <- sample(nrow(df_full), floor(0.85 * nrow(df_full)))
+  df_unb <- df_full[keep, ]
+
+  fit <- ife_unbalanced(Y ~ X, data = df_unb,
+                        index = c("unit", "time"), r = r_true,
+                        se = "standard")
+
+  # F'F/TT = I_r must hold exactly (to 1e-6) after the SVD renormalisation
+  FtF <- crossprod(fit$F_hat) / fit$TT
+  expect_lt(max(abs(FtF - diag(r_true))), 1e-6)
+
+  expect_true(fit$converged)
+  expect_true(is.finite(fit$coef["X"]))
+  expect_lt(abs(fit$coef["X"] - beta_true), 0.30)
+})

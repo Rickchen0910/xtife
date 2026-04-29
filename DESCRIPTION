@@ -1,8 +1,8 @@
 Package: xtife
 Type: Package
-Title: Interactive Fixed Effects Estimator for Balanced Panel Data
-Version: 0.1.3
-Date: 2026-04-21
+Title: Interactive Fixed Effects Estimator for Panel Data
+Version: 0.1.4
+Date: 2026-04-30
 Authors@R: person("Binzhi", "Chen",
                   email = "Binzhi.Chen9@gmail.com",
                   role  = c("aut", "cre"))
@@ -13,6 +13,12 @@ Description: Implements the interactive fixed effects ('IFE') panel estimator of
     extension for predetermined regressors (Moon and Weidner 2017
     <doi:10.1017/S0266466615000328>). Includes information-criterion-based
     factor number selection (Bai and Ng 2002 <doi:10.1111/1468-0262.00273>).
+    Also implements an unbalanced panel extension using the
+    expectation-maximisation algorithm of Bai (2009) with exact inferential
+    statistics from Su, Wang and Wang (2025) <doi:10.2139/ssrn.5177283>,
+    including nuclear-norm regularisation initialisation, singular value
+    thresholding for factor number selection, and analytical bias correction
+    for both strictly and weakly exogenous regressors.
     All computations use base R only with no external dependencies.
 License: GPL-2 | GPL-3
 Encoding: UTF-8

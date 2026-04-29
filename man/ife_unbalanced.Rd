@@ -10,6 +10,12 @@ ife_unbalanced(
   index,
   r = 1L,
   se = "standard",
+  init = "ols",
+  bias_corr = FALSE,
+  exog = "strict",
+  L_T = NULL,
+  c_f = 0.6,
+  nu_NT = NULL,
   tol = 1e-09,
   max_iter = 10000L,
   tol_em = 1e-07,
@@ -27,17 +33,40 @@ pair).}
 \item{r}{Positive integer. Number of interactive factors (default 1).}
 
 \item{se}{SE type: \code{"standard"} (homoskedastic),
-\code{"robust"} (HC1), or \code{"cluster"} (cluster-robust by unit).
-Default \code{"standard"}.}
+\code{"robust"} (HC1), \code{"cluster"} (cluster-robust by unit), or
+\code{"hac"} (HAC with Bartlett kernel, for serially correlated errors;
+SWW2025 p.21). Default \code{"standard"}.}
+
+\item{init}{Initialisation method: \code{"ols"} (default, grand-mean OLS)
+or \code{"nnr"} (nuclear-norm regularisation, SWW2025 Section 3.2).}
+
+\item{bias_corr}{Logical. Apply the SWW2025 Theorem 4.2 analytical bias
+correction. Supports both strictly and weakly exogenous regressors
+(controlled by \code{exog}). Default \code{FALSE}.}
+
+\item{exog}{Exogeneity assumption: \code{"strict"} (default, regressors
+uncorrelated with past and future errors) or \code{"weak"} (weakly
+exogenous, e.g., lagged dependent variable \eqn{x_{it} = y_{i,t-1}}).
+When \code{"weak"} and \code{bias_corr = TRUE}, the additional
+\eqn{\hat{b}_2} term from SWW2025 Theorem 4.2 is computed.}
+
+\item{L_T}{Bartlett kernel bandwidth for HAC standard errors (\code{se
+  = "hac"}) and the dynamic bias term \eqn{\hat{b}_2} (\code{exog =
+  "weak"}, \code{bias_corr = TRUE}). If \code{NULL} (default), set to
+\eqn{\lfloor 2 T^{1/5} \rfloor} after the panel dimensions are known.}
+
+\item{c_f}{SVT threshold constant (default 0.6, SWW2025 eq. 3.7).
+Used only when \code{init = "nnr"}.}
+
+\item{nu_NT}{NNR penalty grid. If \code{NULL} (default), cross-validates
+over \code{c * sqrt(max(N, TT))} for \code{c} in \code{c(0.01, 0.1, 1, 10)}.}
 
 \item{tol}{Outer-loop convergence tolerance on
 \eqn{\max|\hat\beta^{new} - \hat\beta^{old}|}. Default \code{1e-9}.}
 
 \item{max_iter}{Maximum outer-loop iterations. Default \code{10000L}.}
 
-\item{tol_em}{Inner EM convergence tolerance on the maximum change in
-fitted values \eqn{\hat\lambda_i'\hat F_t} at observed cells.
-Default \code{1e-7}.}
+\item{tol_em}{Inner EM convergence tolerance. Default \code{1e-7}.}
 
 \item{max_iter_em}{Maximum inner EM iterations per outer step.
 Default \code{500L}.}
@@ -45,12 +74,15 @@ Default \code{500L}.}
 \value{
 An S3 object of class \code{"ife_unb"} with components:
 \describe{
-\item{coef}{Named p-vector of estimated coefficients \eqn{\hat\beta}.}
+\item{coef}{Named p-vector of estimated coefficients \eqn{\hat\beta}
+(bias-corrected when \code{bias_corr = TRUE}).}
+\item{coef_raw}{Named p-vector of uncorrected coefficients (only when
+\code{bias_corr = TRUE}).}
 \item{vcov}{p x p variance-covariance matrix.}
 \item{se}{Named p-vector of standard errors.}
 \item{tstat}{Named p-vector of t-statistics.}
 \item{pval}{Named p-vector of two-sided p-values.}
-\item{ci}{p x 2 matrix of 95\% confidence intervals.}
+\item{ci}{p x 2 matrix of 95 percent confidence intervals.}
 \item{table}{Data frame coefficient table.}
 \item{F_hat}{TT x r estimated factor matrix (normalised F'F/TT = I_r).}
 \item{Lambda_hat}{N x r estimated loading matrix.}
@@ -62,6 +94,10 @@ observed cells.}
 \item{n_iter}{Outer-loop iterations to convergence.}
 \item{converged}{Logical.}
 \item{N, TT, r, se_type}{Model dimensions and options.}
+\item{init, bias_corr, exog, L_T}{Options used.}
+\item{b_hat, b2, b3, b4, b5, b6}{Bias components (only when
+\code{bias_corr = TRUE}). \code{b2} is a zero vector when
+\code{exog = "strict"}.}
 \item{y_name, x_names, id_col, time_col}{Variable names.}
 \item{unit_vals, time_vals}{Unique unit and time identifiers.}
 \item{unit_idx, time_idx}{Integer index vectors for \code{residuals}.}
@@ -73,7 +109,8 @@ Fits the pure interactive fixed effects model
 \deqn{Y_{it} = X_{it}'\beta + \lambda_i'F_t + u_{it}}
 for unbalanced panels (units observed at different sets of time periods)
 using the expectation-maximisation (EM) algorithm of
-Bai (2009) Appendix B.  No additive unit or time fixed effects are
+Bai (2009) Appendix B, with exact inferential statistics from
+Su, Wang and Wang (2025).  No additive unit or time fixed effects are
 included in this specification.
 }
 \examples{
@@ -89,6 +126,7 @@ print(fit)
 Bai, J. (2009). Panel data models with interactive fixed effects.
 \emph{Econometrica}, 77(4), 1229--1279. \doi{10.3982/ECTA6135}
 
-Stock, J.H. and Watson, M.W. (1998). Diffusion indexes.
-\emph{NBER Working Paper} 6702.
+Su, L., Wang, X. and Wang, Z. (2025). Estimation and inference for
+unbalanced panel data models with interactive fixed effects.
+\emph{SSRN Working Paper} 5177283.
 }

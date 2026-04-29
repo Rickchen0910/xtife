@@ -2,3 +2,4 @@
 ^\.Rbuildignore$
 ^doc$
 ^Meta$
+^\.github$

@@ -157,7 +157,10 @@
       M      <- crossprod(E) / (N * T)         # N x N
       eig    <- eigen(M, symmetric = TRUE)
       Lambda <- eig$vectors[, seq_len(r), drop = FALSE] * sqrt(N)  # N x r
-      F_hat  <- E %*% Lambda / N               # T x r
+      F_raw  <- E %*% Lambda / N               # T x r  (not yet normalised)
+      # Renormalise via SVD to guarantee F'F/T = I_r (same as T <= N branch)
+      sv_F   <- svd(F_raw, nu = r, nv = 0L)
+      F_hat  <- sv_F$u[, seq_len(r), drop = FALSE] * sqrt(T)       # T x r
     }
     F_hat
   }

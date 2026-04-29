@@ -182,3 +182,39 @@ test_that("method='static' explicit equals default to machine precision", {
                unname(fit_explicit$coef["price"]),
                tolerance = 1e-10)
 })
+
+
+# ============================================================================
+# Test B_TT_N — T > N synthetic panel: F'F/T = I_r guaranteed after fix
+# ============================================================================
+test_that("B_TT_N: T > N balanced panel — factor normalisation F'F/T = I_r", {
+  skip_on_cran()
+
+  set.seed(42L)
+  N_small <- 10L; T_big <- 30L; r_true <- 2L; beta_true <- 0.5
+
+  F_true <- matrix(rnorm(T_big * r_true), T_big, r_true)
+  L_true <- matrix(rnorm(N_small * r_true), N_small, r_true)
+  X_mat  <- matrix(rnorm(T_big * N_small), T_big, N_small)
+  Y_mat  <- beta_true * X_mat +
+            F_true %*% t(L_true) +
+            matrix(rnorm(T_big * N_small, sd = 0.5), T_big, N_small)
+
+  df <- data.frame(
+    unit = rep(seq_len(N_small), each = T_big),
+    time = rep(seq_len(T_big),   times = N_small),
+    Y    = as.vector(Y_mat),
+    X    = as.vector(X_mat)
+  )
+
+  fit <- ife(Y ~ X, data = df, index = c("unit", "time"),
+             r = r_true, force = "none", se = "standard")
+
+  # F'F/T = I_r must hold exactly (to 1e-6) after the SVD renormalisation
+  FtF <- crossprod(fit$F_hat) / T_big
+  expect_lt(max(abs(FtF - diag(r_true))), 1e-6)
+
+  expect_true(fit$converged)
+  expect_true(is.finite(fit$coef["X"]))
+  expect_lt(abs(fit$coef["X"] - beta_true), 0.30)
+})
