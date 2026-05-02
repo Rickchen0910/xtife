@@ -583,7 +583,7 @@
   # D0_inv = (A/NT)^{-1} where A = X_tilde'X_tilde (double-projected)
   Xt_long <- matrix(0, TT * N, p)
   for (k in seq_len(p)) Xt_long[, k] <- as.vector(X_tilde[, , k])
-  D0_inv <- solve(crossprod(Xt_long) / (N * T))      # p x p
+  D0_inv <- solve(crossprod(Xt_long) / (N * TT))     # p x p
 
   # P_F = F (F'F)^{-1} F'  (T x T projection onto column space of F)
   FtF_inv <- solve(crossprod(F_hat))                  # r x r

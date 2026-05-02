@@ -895,8 +895,11 @@
 #' Fits the pure interactive fixed effects model
 #' \deqn{Y_{it} = X_{it}'\beta + \lambda_i'F_t + u_{it}}
 #' for unbalanced panels (units observed at different sets of time periods)
-#' using the expectation-maximisation (EM) algorithm of
-#' Bai (2009) Appendix B, with exact inferential statistics from
+#' via an Alternating Maximisation (AM) outer loop that iterates between
+#' updating \eqn{\hat\beta} and the factors \eqn{(\hat\lambda, \hat F)},
+#' with the EM algorithm of Bai (2009) Appendix B used as the inner loop
+#' to update \eqn{(\hat\lambda, \hat F)} given \eqn{\beta}.
+#' Exact inferential statistics (standard errors and bias correction) follow
 #' Su, Wang and Wang (2025).
 #'
 #' **Additive fixed effects.**  The SWW2025 model does not include explicit
@@ -993,7 +996,7 @@
 #' Bai, J. (2009). Panel data models with interactive fixed effects.
 #' \emph{Econometrica}, 77(4), 1229--1279. \doi{10.3982/ECTA6135}
 #'
-#' Su, L., Wang, X. and Wang, Z. (2025). Estimation and inference for
+#' Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
 #' unbalanced panel data models with interactive fixed effects.
 #' \emph{SSRN Working Paper} 5177283.
 #'
@@ -1401,7 +1404,7 @@ ife_unbalanced <- function(formula,
 #'   \code{c_NT}, and \code{nu_used}.
 #'
 #' @references
-#' Su, L., Wang, X. and Wang, Z. (2025). Estimation and inference for
+#' Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
 #' unbalanced panel data models with interactive fixed effects.
 #' \emph{SSRN Working Paper} 5177283.
 #'
@@ -1539,7 +1542,7 @@ ife_select_r_unb <- function(formula, data, index,
 print.ife_unb <- function(x, digits = 4L, ...) {
 
   cat("\n")
-  cat("Unbalanced Panel IFE  (Bai 2009 EM / SWW2025 Inference)\n")
+  cat("Unbalanced Panel IFE  (Su, Wang & Wang 2025)\n")
   cat(strrep("-", 58L), "\n")
   cat(sprintf("Panel    : N = %d units,  TT = %d periods (max)\n",
               x$N, x$TT))

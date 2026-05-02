@@ -41,7 +41,7 @@ Section 3.3, eq. 3.7).
 }
 }
 \references{
-Su, L., Wang, X. and Wang, Z. (2025). Estimation and inference for
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
 unbalanced panel data models with interactive fixed effects.
 \emph{SSRN Working Paper} 5177283.
 }
