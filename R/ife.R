@@ -638,7 +638,15 @@
 #' @param index    character(2): `c("unit_id_column", "time_id_column")`
 #' @param r        integer >= 0, number of interactive factors (default 1)
 #' @param force    additive FE specification: `"none"` | `"unit"` | `"time"` |
-#'   `"two-way"` (default `"two-way"`)
+#'   `"two-way"` (default `"two-way"`). Additive unit effects \eqn{\alpha_i}
+#'   and time effects \eqn{\xi_t} are removed via the standard within
+#'   transformation (iterative demeaning) before the SVD algorithm runs,
+#'   following Bai (2009) Section 3. Bai (2009, p.1) shows that two-way
+#'   additive effects are a special case of the interactive structure with
+#'   \eqn{r = 2} (setting \eqn{F_t = (1, \xi_t)'} and
+#'   \eqn{\lambda_i = (\alpha_i, 1)'}), so the IFE estimator remains consistent
+#'   when additive effects are present regardless of the `force` choice, but
+#'   pre-demeaning improves efficiency.
 #' @param se       SE type: `"standard"` | `"robust"` | `"cluster"`
 #'   (default `"standard"`; `"cluster"` clusters by unit id)
 #' @param bias_corr logical; if `TRUE` apply bias correction. For

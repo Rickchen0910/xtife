@@ -30,7 +30,11 @@ pair).}
 
 \item{index}{Character vector of length 2: \code{c("unit_col", "time_col")}.}
 
-\item{r}{Positive integer. Number of interactive factors (default 1).}
+\item{r}{Positive integer. Number of interactive factors (default 1).
+To absorb additive fixed effects into the factor structure (the
+recommended approach for unbalanced panels; see Description), set
+\code{r = r_true + 1} for unit FE or \code{r = r_true + 2} for two-way
+FE.}
 
 \item{se}{SE type: \code{"standard"} (homoskedastic),
 \code{"robust"} (HC1), \code{"cluster"} (cluster-robust by unit), or
@@ -110,8 +114,28 @@ Fits the pure interactive fixed effects model
 for unbalanced panels (units observed at different sets of time periods)
 using the expectation-maximisation (EM) algorithm of
 Bai (2009) Appendix B, with exact inferential statistics from
-Su, Wang and Wang (2025).  No additive unit or time fixed effects are
-included in this specification.
+Su, Wang and Wang (2025).
+}
+\details{
+\strong{Additive fixed effects.}  The SWW2025 model does not include explicit
+additive unit effects \eqn{\alpha_i} or time effects \eqn{\xi_t}.
+SWW2025 (p.13, Theorem 3.2 discussion) states that the convergence and
+asymptotic theory extend "in spirit" to two-way fixed effects models, and
+(p.17, eq.\ 4.1--4.2 discussion) that "linear/nonlinear panels with one
+way/two way/interactive fixed effects are all covered by this framework."
+However, SWW2025 does not formally derive the SE or bias-correction
+formulas for the explicitly demeaned unbalanced case.
+
+The standard approach — supported by Bai (2009, p.1), who shows that
+two-way additive effects equal \eqn{\lambda_i'F_t} for the special choice
+\eqn{F_t = (1,\,\xi_t)'}, \eqn{\lambda_i = (\alpha_i,\,1)'} — is to
+absorb the additive effects into the factor structure by increasing \eqn{r}:
+\itemize{
+\item Unit FE only: set \code{r = r_true + 1}.
+\item Two-way FE: set \code{r = r_true + 2}.
+}
+The SWW2025 inferential theory (SE and bias correction) then applies
+directly to the augmented factor model.
 }
 \examples{
 data(cigar, package = "xtife")
