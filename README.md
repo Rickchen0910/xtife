@@ -18,7 +18,7 @@ Standard two-way fixed effects (TWFE) assumes unobserved heterogeneity enters ad
 
 $$y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i'F_t + u_{it}$$
 
-where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$ are unit-specific loadings. Setting $r = 0$ reduces the model to standard TWFE. For **unbalanced panels**, the additive fixed effects $\alpha_i$ and $\xi_t$ are absorbed into the factor structure.
+where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$ are unit-specific loadings. Setting $r = 0$ reduces the model to standard TWFE. For **unbalanced panels**, `ife_unbalanced()` estimates the pure interactive model without explicit additive FE terms. To accommodate additive effects, increase `r` by 1 (unit FE) or 2 (two-way FE) so the factors can absorb the additive heterogeneity.
 
 ---
 
@@ -26,11 +26,11 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 
 | Feature | Balanced (`ife`) | Unbalanced (`ife_unbalanced`) |
 |---------|:---:|:---:|
-| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | EM algorithm · [Bai (2009)](https://doi.org/10.3982/ECTA6135) App. B |
+| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | NNR initialisation + alternating maximisation · [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) |
 | Standard errors | Homoskedastic · HC1 robust · Cluster | Homoskedastic · HC1 robust · Cluster · HAC |
 | Static bias correction | [Bai (2009)](https://doi.org/10.3982/ECTA6135) $\hat B/N + \hat C/T$ | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_3$–$\hat b_6$ |
 | Dynamic bias correction | [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_2$–$\hat b_6$ |
-| Factor number selection | IC1/2/3 · IC(BIC) · PC | SVT rule · [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) eq. 3.7 |
+| Factor number selection | IC1/2/3 · IC(BIC) · PC | SVT rule ([SWW 2025](https://doi.org/10.2139/ssrn.5177283) eq. 3.7) |
 | Initialisation | — | OLS · Nuclear-norm regularisation (NNR) |
 | Dependencies | Base R only | Base R only |
 
@@ -138,7 +138,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 
 ## Unbalanced Panel: Quick Start
 
-`ife_unbalanced()` implements the [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) framework for genuinely unbalanced panels. It uses the Bai (2009) EM algorithm to handle missing $(i,t)$ cells and provides inference exact to $O((NT)^{-1/2})$.
+`ife_unbalanced()` implements the [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) framework for genuinely unbalanced panels. The estimator follows a two-step procedure: nuclear-norm regularisation (NNR) provides a consistent initial estimate of the factor structure, followed by alternating maximisation (AM) that iterates between updating β and the factors $(\hat\lambda, \hat F)$ until convergence. The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
 
 ```r
 # Simulate a 10% randomly missing panel
@@ -160,7 +160,7 @@ print(fit_unb)
 | `"standard"` | Homoskedastic i.i.d. errors | Benchmark |
 | `"robust"` | HC1 | Cell-level heteroskedasticity |
 | `"cluster"` | Cluster-robust by unit | Serial correlation within units |
-| `"hac"` | Bartlett kernel (bandwidth $L_T = \lfloor 2T^{1/5}\rfloor$) | Serially correlated errors across time |
+| `"hac"` | Bartlett kernel (bandwidth $L_T = \lfloor 2T^{1/5}\rfloor$) | Serial correlation over time within units |
 
 ### Factor number selection
 
@@ -169,7 +169,7 @@ print(fit_unb)
 ```r
 sel_unb <- ife_select_r_unb(sales ~ price, data = cigar_unb,
                               index = c("state", "year"))
-# Returns: r_hat, singular values, threshold, NNR penalty used
+# Returns: r_hat, singular values, SVT threshold, and (if init="nnr") the NNR penalty
 ```
 
 ### Analytical bias correction
@@ -218,7 +218,7 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `ife()` | Balanced | Fit IFE model (Bai 2009); returns coefficients, SEs, factors, loadings |
 | `print.ife()` | Balanced | Formatted coefficient table and model summary |
 | `ife_select_r()` | Balanced | Fit IFE for $r = 0, \ldots, r_{\max}$; compare IC1/2/3, IC(BIC), PC |
-| `ife_unbalanced()` | Unbalanced | Fit IFE via EM algorithm (SWW 2025); exact SE, bias correction |
+| `ife_unbalanced()` | Unbalanced | Fit IFE via NNR + alternating maximisation (SWW 2025); exact SE, bias correction |
 | `print.ife_unb()` | Unbalanced | Formatted coefficient table with bias components |
 | `ife_select_r_unb()` | Unbalanced | SVT factor selection (SWW 2025 eq. 3.7) |
 
@@ -292,7 +292,7 @@ Ditzen, J. and Karavias, Y. (2025). Interactive, Grouped and Non-separable Fixed
 
 Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with interactive fixed effects. *Econometric Theory*, 33, 158–195. [doi:10.1017/S0266466615000328](https://doi.org/10.1017/S0266466615000328)
 
-Su, L., Wang, X. and Wang, Y. (2025). Estimation and inference for interactive fixed effects panel data models with unbalanced panels. SSRN Working Paper 5177283. [doi:10.2139/ssrn.5177283](https://doi.org/10.2139/ssrn.5177283)
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for interactive fixed effects panel data models with unbalanced panels. SSRN Working Paper 5177283. [doi:10.2139/ssrn.5177283](https://doi.org/10.2139/ssrn.5177283)
 
 ---
 
