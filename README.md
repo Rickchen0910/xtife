@@ -26,7 +26,7 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 
 | Feature | Balanced (`ife`) | Unbalanced (`ife_unbalanced`) |
 |---------|:---:|:---:|
-| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | NNR initialisation + alternating maximisation · [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) |
+| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | Alternating maximisation (AM) · [SWW (2025)](https://doi.org/10.2139/ssrn.5177283); OLS or NNR init |
 | Standard errors | Homoskedastic · HC1 robust · Cluster | Homoskedastic · HC1 robust · Cluster · HAC |
 | Static bias correction | [Bai (2009)](https://doi.org/10.3982/ECTA6135) $\hat B/N + \hat C/T$ | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_3$–$\hat b_6$ |
 | Dynamic bias correction | [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_2$–$\hat b_6$ |
@@ -138,7 +138,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 
 ## Unbalanced Panel: Quick Start
 
-`ife_unbalanced()` implements the [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) framework for genuinely unbalanced panels. The estimator follows a two-step procedure: nuclear-norm regularisation (NNR) provides a consistent initial estimate of the factor structure, followed by alternating maximisation (AM) that iterates between updating β and the factors $(\hat\lambda, \hat F)$ until convergence. The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
+`ife_unbalanced()` implements the [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) framework for genuinely unbalanced panels. The core algorithm is an Alternating Maximisation (AM) outer loop that iterates between updating β and the factors $(\hat\lambda, \hat F)$ until convergence, with the Bai (2009) EM algorithm used as the inner loop to update $(\hat\lambda, \hat F)$ given β. Initialisation is via plain OLS (`init = "ols"`, the default) or nuclear-norm regularisation (`init = "nnr"`, recommended when the panel is severely unbalanced or $r \geq 3$). The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
 
 ```r
 # Simulate a 10% randomly missing panel
@@ -169,7 +169,7 @@ print(fit_unb)
 ```r
 sel_unb <- ife_select_r_unb(sales ~ price, data = cigar_unb,
                               index = c("state", "year"))
-# Returns: r_hat, singular values, SVT threshold, and (if init="nnr") the NNR penalty
+# Returns: r_hat, singular values, SVT threshold, nu_used (NNR penalty from cross-validation)
 ```
 
 ### Analytical bias correction
@@ -218,7 +218,7 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `ife()` | Balanced | Fit IFE model (Bai 2009); returns coefficients, SEs, factors, loadings |
 | `print.ife()` | Balanced | Formatted coefficient table and model summary |
 | `ife_select_r()` | Balanced | Fit IFE for $r = 0, \ldots, r_{\max}$; compare IC1/2/3, IC(BIC), PC |
-| `ife_unbalanced()` | Unbalanced | Fit IFE via NNR + alternating maximisation (SWW 2025); exact SE, bias correction |
+| `ife_unbalanced()` | Unbalanced | Fit IFE via alternating maximisation (SWW 2025); OLS or NNR initialisation; exact SE, bias correction |
 | `print.ife_unb()` | Unbalanced | Formatted coefficient table with bias components |
 | `ife_select_r_unb()` | Unbalanced | SVT factor selection (SWW 2025 eq. 3.7) |
 

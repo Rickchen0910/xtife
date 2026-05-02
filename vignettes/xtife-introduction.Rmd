@@ -301,8 +301,13 @@ selection bias; imputation by column means distorts the factor structure.
 Su, Wang and Wang (2025, hereafter SWW2025) extend the Bai (2009) estimator
 to genuinely unbalanced panels.  Their paper provides:
 
-1. An EM-based estimation algorithm (Bai 2009, Appendix B);
-2. Analytical standard errors exact to $O((NT)^{-1/2})$;
+1. A two-step estimation procedure: nuclear-norm regularisation (NNR) for
+   consistent initialisation of the factor structure, followed by an
+   Alternating Maximisation (AM) outer loop that iterates between updating
+   $\beta$ and $(\hat F, \hat\Lambda)$; within each AM iteration the factors
+   are updated via the EM algorithm of Bai (2009, Appendix B);
+2. Analytical standard errors yielding $\sqrt{NT}$-asymptotically normal
+   inference;
 3. Analytical bias correction for both strictly and weakly exogenous
    regressors.
 
@@ -317,9 +322,10 @@ $$y_{it} = X_{it}'\beta + \lambda_i' F_t + u_{it}
 
 There are no additive fixed effects in (2).  Individual and time heterogeneity
 is absorbed by the factor structure: a unit effect corresponds to a factor with
-$F_t = 1$; a time effect corresponds to a factor with $\lambda_i = 1$.  In
-practice, including one extra factor beyond the number of interactive terms is
-sufficient to absorb residual additive heterogeneity.
+$F_t = 1$ for all $t$; a time effect corresponds to a factor with
+$\lambda_i = 1$ for all $i$.  In practice, increase $r$ by 1 to absorb a unit
+additive effect, or by 2 to absorb both unit and time additive effects
+(two-way heterogeneity).
 
 ### Identification
 
@@ -363,7 +369,7 @@ dim(fit_unb$Lambda_hat)  # N  x r
 
 ## Estimation algorithm
 
-### Outer alternating-minimisation loop
+### Outer alternating-maximisation (AM) loop
 
 `ife_unbalanced()` solves the unbalanced least-squares problem:
 
@@ -381,14 +387,15 @@ The outer loop alternates:
    $\tilde X_{it} = X_{it} - \hat F_t(\hat F_i'\hat F_i)^{-1}\hat F_i' X_i$,
    where the inner product is restricted to unit $i$'s observed periods.
 
-### EM inner loop (Bai 2009, Appendix B)
+### EM inner loop (Bai 2009, Appendix B) — used within each AM iteration
 
-The EM step treats missing $W_{it}$ as latent variables imputed by the
-current factor estimate $\hat\Lambda_i' \hat F_t$:
+Within each AM outer iteration, $(\hat F, \hat\Lambda)$ are updated by the
+EM algorithm of Bai (2009, Appendix B), which treats the missing $W_{it}$
+as latent variables imputed from the current factor estimate:
 
-1. **E-step**: fill $W_{it}^{\text{fill}} = \hat\Lambda_i'\hat F_t$
-   for all unobserved $(i,t)$.
-2. **M-step**: apply the standard SVD factor extraction to the completed
+1. **E-step**: impute missing cells with the current fitted values:
+   $W_{it}^{\text{fill}} = \hat\Lambda_i'\hat F_t$ for all unobserved $(i,t)$.
+2. **M-step**: apply standard SVD factor extraction to the completed
    $T \times N$ matrix $W^{\text{fill}}$.
 
 The EM loop converges when $\max_{(i,t): d_{it}=1}
@@ -460,7 +467,7 @@ $\hat\Omega_X$ depending on the `se` argument:
 | `"standard"` | $\frac{1}{NT}\sum_{it} d_{it}\hat u_{it}^2\hat x_{it}\hat x_{it}'$ | Homoskedastic errors |
 | `"robust"` | same formula, HC1-scaled | Heteroskedastic errors |
 | `"cluster"` | $\frac{1}{NT}\sum_i \psi_i\psi_i'$, $\psi_i = \sum_t d_{it}\hat u_{it}\hat x_{it}$ | Serial correlation within units |
-| `"hac"` | Bartlett kernel over $(t,s)$ pairs: $\frac{1}{NT}\sum_i\sum_{t,s}\Gamma\!\left(\frac{|s-t|}{L_T}\right)d_{it}d_{is}\hat u_{it}\hat u_{is}\hat x_{it}\hat x_{is}'$ | Serially correlated errors across time |
+| `"hac"` | Bartlett kernel over $(t,s)$ pairs: $\frac{1}{NT}\sum_i\sum_{t,s}\Gamma\!\left(\frac{|s-t|}{L_T}\right)d_{it}d_{is}\hat u_{it}\hat u_{is}\hat x_{it}\hat x_{is}'$ | Serial correlation over time within units |
 
 The Bartlett kernel is $\Gamma(u) = (1-u)\mathbf{1}\{u \leq 1\}$; the
 bandwidth defaults to $L_T = \lfloor 2T^{1/5}\rfloor$.
@@ -690,7 +697,7 @@ with interactive fixed effects.
 *Econometric Theory*, **33**, 158--195.
 <doi:10.1017/S0266466615000328>
 
-Su, L., Wang, X. and Wang, Y. (2025). Estimation and inference for
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
 interactive fixed effects panel data models with unbalanced panels.
 SSRN Working Paper 5177283.
 <doi:10.2139/ssrn.5177283>
