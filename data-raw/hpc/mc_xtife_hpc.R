@@ -26,7 +26,7 @@
 # No installation, no admin rights, no internet access needed on compute nodes.
 # ------------------------------------------------------------------------------
 .xtife_base <- Sys.getenv("XTIFE_MC_BASE", unset = "/home/bc25911/xtife_mc")
-.xtife_src  <- file.path(.xtife_base, "xtife_src")
+.xtife_src  <- .xtife_base   # ife.R and ife_unbalanced.R sit directly in xtife_mc/
 
 if (requireNamespace("xtife", quietly = TRUE)) {
   suppressPackageStartupMessages(library(xtife))
