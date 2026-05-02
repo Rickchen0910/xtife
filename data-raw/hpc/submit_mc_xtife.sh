@@ -24,7 +24,18 @@ JOB_SCRIPT=$BASE/run_mc_job.sh
 
 mkdir -p "$BASE/logs/out" "$BASE/logs/err" \
          "$BASE/logs/success" "$BASE/logs/failed" \
-         "$BASE/results"
+         "$BASE/results" "$BASE/xtife_src"
+
+# xtife is loaded by sourcing R files directly — no package installation needed.
+# Before running this script, upload the two source files once:
+#   rsync -av R/ife.R R/ife_unbalanced.R \
+#             bc25911@hpc.essex.ac.uk:$BASE/xtife_src/
+if [ ! -f "$BASE/xtife_src/ife.R" ]; then
+  echo "WARNING: $BASE/xtife_src/ife.R not found."
+  echo "  Upload with: rsync -av R/ife.R R/ife_unbalanced.R \\"
+  echo "    bc25911@hpc.essex.ac.uk:$BASE/xtife_src/"
+  echo "  Continuing submission — jobs will fail if files are missing."
+fi
 
 # ---------------------------------------------------------------------------
 # Replications

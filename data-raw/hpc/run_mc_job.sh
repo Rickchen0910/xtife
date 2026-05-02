@@ -44,11 +44,15 @@ echo "  Start: $(date)"
 echo "============================================================"
 
 # ---------------------------------------------------------------------------
-# R library path (xtife installed in user library)
+# R setup
 # ---------------------------------------------------------------------------
-export R_LIBS_USER=/home/bc25911/R/library:$R_LIBS_USER
+# xtife is loaded by mc_xtife_hpc.R by sourcing R/ife.R + R/ife_unbalanced.R
+# from $BASE/xtife_src/ — no installation needed.
+# (Uncomment the lines below only if you installed xtife to a user library
+#  instead of using the source approach.)
+# export R_LIBS_USER=/home/bc25911/R/library:$R_LIBS_USER
 
-# Module load (uncomment if CERES requires it)
+# Uncomment if CERES requires a module load for R:
 # module load R/4.3.1
 
 # ---------------------------------------------------------------------------

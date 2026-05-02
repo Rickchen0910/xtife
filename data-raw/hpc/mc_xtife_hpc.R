@@ -18,7 +18,36 @@
 #   List: params, summ (summary stats), raw_mat (B×21 matrix), timing
 # ==============================================================================
 
-suppressPackageStartupMessages(library(xtife))
+# Load xtife -------------------------------------------------------------------
+# Strategy: try the installed package first; if unavailable (no system-wide
+# install on HPC), source the two R files directly from xtife_src/.
+# To use the source approach, upload R/ife.R and R/ife_unbalanced.R to:
+#   /home/bc25911/xtife_mc/xtife_src/
+# No installation, no admin rights, no internet access needed on compute nodes.
+# ------------------------------------------------------------------------------
+.xtife_base <- Sys.getenv("XTIFE_MC_BASE", unset = "/home/bc25911/xtife_mc")
+.xtife_src  <- file.path(.xtife_base, "xtife_src")
+
+if (requireNamespace("xtife", quietly = TRUE)) {
+  suppressPackageStartupMessages(library(xtife))
+  cat("[xtife] loaded from installed package\n")
+} else if (dir.exists(.xtife_src)) {
+  for (.f in file.path(.xtife_src, c("ife.R", "ife_unbalanced.R")))
+    source(.f, local = FALSE)
+  cat(sprintf("[xtife] loaded from source: %s\n", .xtife_src))
+} else {
+  stop(
+    "Cannot load xtife.\n",
+    "Option A — install to user library on HPC:\n",
+    "  mkdir -p ~/R/library\n",
+    "  R -e 'install.packages(\"xtife\", lib=\"~/R/library\")'\n",
+    "  Then add: export R_LIBS_USER=~/R/library to run_mc_job.sh\n\n",
+    "Option B — source from files (no installation needed):\n",
+    "  rsync -av R/ife.R R/ife_unbalanced.R ",
+    "bc25911@hpc.essex.ac.uk:", .xtife_src, "/\n"
+  )
+}
+rm(.xtife_base, .xtife_src, list = ls(pattern = "^\\.f$"))
 
 # ==============================================================================
 # 0 — Command-line arguments & fixed parameters
