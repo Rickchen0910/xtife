@@ -47,6 +47,10 @@ install.packages("xtife")
 remotes::install_github("Rickchen0910/xtife")
 ```
 
+### What's new in 0.1.5
+
+The unbalanced-panel estimator is now fully aligned with the reference two-step procedure of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283): the NNR penalty grid is $c \cdot \max(N,T)$, $c \in \{0.01, 0.1, 1, 10\}$ (their footnote 12), and `ife_unbalanced()` defaults to `init = "nnr"` (their nuclear-norm-regularised first-step estimator). Degenerate penalty candidates (which previously could make `ife_select_r_unb()` return $\hat r = \min(N,T)$) are now excluded. See [NEWS.md](NEWS.md) for the full history.
+
 ---
 
 ## Balanced Panel: Quick Start
