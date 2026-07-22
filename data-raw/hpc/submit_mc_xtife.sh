@@ -38,20 +38,40 @@ if [ ! -f "$BASE/xtife_src/ife.R" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Replications
+# Flags (order-independent):
+#   --test       -> B=10 smoke test
+#   --hetero     -> heteroskedastic errors          (MC_ERR=hetero)
+#   --serial     -> MA(1) serial correlation        (MC_ERR=serial)
+#   --serialhet  -> serial correlation + heterosk.  (MC_ERR=serialhet)
+# (serial correlation applies to the static DGPs 1 & 2 only; the dynamic DGPs
+#  stay serially uncorrelated — see mc_xtife_hpc.R.)
 # ---------------------------------------------------------------------------
-if [[ "$1" == "--test" ]]; then
-    B=10
-    echo ">>> TEST MODE  (B=10 reps per cell — expect tiny MC error)"
-else
-    B=1000
-    echo ">>> FULL RUN   (B=1000 reps per cell)"
-fi
+B=1000
+MCERR=homo
+for arg in "$@"; do
+  case "$arg" in
+    --test)      B=10 ;;
+    --hetero)    MCERR=hetero ;;
+    --serial)    MCERR=serial ;;
+    --serialhet) MCERR=serialhet ;;
+  esac
+done
+if [[ $B -eq 10 ]]; then echo ">>> TEST MODE (B=10)"; else echo ">>> FULL RUN (B=1000)"; fi
+echo ">>> Error structure: MC_ERR=$MCERR"
+# job-name / log tag so different error structures do not collide
+case "$MCERR" in
+  hetero)    JT="_het" ;;
+  serial)    JT="_ser" ;;
+  serialhet) JT="_serhet" ;;
+  *)         JT="" ;;
+esac
 
 # ---------------------------------------------------------------------------
 # Parameter arrays
 # ---------------------------------------------------------------------------
-dgps=(1 2 3 4)
+# DGPs to run: override with the DGPS env var, e.g.
+#   DGPS="2 4" bash submit_mc_xtife.sh        # only the unbalanced DGPs
+dgps=(${DGPS:-1 2 3 4})
 obs=(30 50 100 200)
 tpers=(10 50 100 200)
 fills=(80 60)          # ×100; only relevant for DGPs 2 & 4
@@ -87,12 +107,13 @@ for dgp in "${dgps[@]}"; do
           continue
         fi
 
-        jobname="mc_xtife_d${dgp}_N${nobs}_T${tper}_f${fill}"
+        jobname="mc_xtife_d${dgp}_N${nobs}_T${tper}_f${fill}${JT}"
 
         qsub \
           -N  "$jobname" \
           -o  "$BASE/logs/out/${jobname}.out" \
           -e  "$BASE/logs/err/${jobname}.err" \
+          -v  MC_ERR="$MCERR" \
           "$JOB_SCRIPT" \
           "$dgp" "$nobs" "$tper" "$fill" "$B"
 

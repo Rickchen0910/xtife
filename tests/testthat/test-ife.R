@@ -101,6 +101,14 @@ test_that("static bias correction produces corrected coef ~-0.5309", {
   expect_true(fit_bc$bias_applied)
   expect_false(is.null(fit_bc$B_hat))
   expect_false(is.null(fit_bc$C_hat))
+
+  # Decomposition identity (Bai sign convention, as printed by print.ife):
+  #   corrected = raw - B_hat/N - C_hat/T  must hold exactly
+  expect_equal(unname(fit_bc$coef["price"]),
+               unname(fit_bc$coef_raw["price"] -
+                      fit_bc$B_hat["price"] / fit_bc$N -
+                      fit_bc$C_hat["price"] / fit_bc$T),
+               tolerance = 1e-10)
 })
 
 # ==============================================================================
@@ -130,8 +138,17 @@ test_that("dynamic bias correction produces corrected coef ~-0.5343", {
   expect_false(is.null(fit_dbc$B1_hat))
   expect_false(is.null(fit_dbc$B2_hat))
   expect_false(is.null(fit_dbc$B3_hat))
-  # B1 near zero (price is approximately exogenous in cigar data)
-  expect_lt(abs(fit_dbc$B1_hat["price"] / fit_dbc$T), 0.01)
+  # B1 contribution near zero (price is approximately exogenous in cigar data);
+  # B*_hat are the additive contributions W^{-1}B_l (scalings included)
+  expect_lt(abs(fit_dbc$B1_hat["price"]), 0.01)
+
+  # Decomposition identity: corrected = raw + B1 + B2 + B3, exactly
+  expect_equal(unname(fit_dbc$coef["price"]),
+               unname(fit_dbc$coef_raw["price"] +
+                      fit_dbc$B1_hat["price"] +
+                      fit_dbc$B2_hat["price"] +
+                      fit_dbc$B3_hat["price"]),
+               tolerance = 1e-10)
 })
 
 # ==============================================================================

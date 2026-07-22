@@ -82,8 +82,9 @@ dependencies) offering:
 | Balanced IFE: static bias correction | `ife(..., bias_corr=TRUE)` | Bai (2009, §7) |
 | Balanced IFE: dynamic regressors | `ife(..., method="dynamic")` | Moon & Weidner (2017) |
 | Factor number selection (balanced) | `ife_select_r()` | Bai & Ng (2002); Bai (2009) |
-| Unbalanced IFE: exact inference | `ife_unbalanced()` | Su, Wang & Wang (2025) |
-| Unbalanced IFE: factor selection | `ife_select_r_unb()` | Su, Wang & Wang (2025, §3.3) |
+| Unbalanced IFE: estimation & analytical inference | `ife_unbalanced()` | Su, Wang & Wang (2025); Bai (2009); Bai & Ng (2021) |
+| Unbalanced IFE: additive FE (`force`) | `ife_unbalanced(force=)` | Su, Wang & Wang (2025) |
+| Unbalanced IFE: factor selection | `ife_select_r_unb()` | Su, Wang & Wang (2025); Bai & Ng (2021) |
 
 ---
 
@@ -298,20 +299,31 @@ data-collection gaps, and rotating samples all cause missing $(i,t)$ cells.
 Simply deleting units with incomplete records (list-wise deletion) induces
 selection bias; imputation by column means distorts the factor structure.
 
-Su, Wang and Wang (2025, hereafter SWW2025) extend the Bai (2009) estimator
-to genuinely unbalanced panels.  Their paper provides:
+`ife_unbalanced()` extends the Bai (2009) interactive fixed effects
+estimator to genuinely unbalanced panels, following the estimation and
+inference theory of Su, Wang and Wang (2025), and combines three published
+ideas:
 
-1. A two-step estimation procedure: nuclear-norm regularisation (NNR) for
-   consistent initialisation of the factor structure, followed by an
-   Alternating Maximisation (AM) outer loop that iterates between updating
-   $\beta$ and $(\hat F, \hat\Lambda)$; within each AM iteration the factors
-   are updated via the EM algorithm of Bai (2009, Appendix B);
-2. Analytical standard errors yielding $\sqrt{NT}$-asymptotically normal
-   inference;
-3. Analytical bias correction for both strictly and weakly exogenous
-   regressors.
+1. **Factor analysis with missing data.** The factor structure is recovered
+   from the observed cells by an expectation-maximisation (EM) algorithm that
+   treats the unobserved entries as latent, in the spirit of Bai (2009,
+   Appendix B) and the missing-data factor / matrix-completion framework of
+   Bai and Ng (2021).
+2. **Nuclear-norm initialisation.** A nuclear-norm-regularised (soft-impute)
+   estimator (Mazumder, Hastie and Tibshirani 2010) provides a consistent
+   warm start for the factor structure, stabilising the alternating loop when
+   the panel is severely unbalanced.
+3. **Analytical inference.** Standard errors use a sandwich estimator on
+   factor-projected regressors (the unbalanced analogue of the balanced
+   formula of Bai 2009), with heteroskedasticity-, cluster- and
+   autocorrelation-robust variants; an analytical incidental-parameter bias
+   correction is provided for both strictly exogenous and predetermined
+   (weakly exogenous) regressors. The inference and bias-correction formulae
+   for the unbalanced case follow Su, Wang and Wang (2025), extending the
+   bias-correction principles of Bai (2009) and Moon and Weidner (2017).
 
-`xtife` implements the complete SWW2025 framework.
+In addition, additive unit and/or time fixed effects can be removed jointly
+with the factors through the `force` argument (Section 3.2).
 
 ## The unbalanced IFE model
 
@@ -320,12 +332,11 @@ Let $d_{it} \in \{0,1\}$ indicate whether $(i,t)$ is observed.  The model is:
 $$y_{it} = X_{it}'\beta + \lambda_i' F_t + u_{it}
 \qquad \text{for all } (i,t) \text{ with } d_{it}=1 \qquad (2)$$
 
-There are no additive fixed effects in (2).  Individual and time heterogeneity
-is absorbed by the factor structure: a unit effect corresponds to a factor with
-$F_t = 1$ for all $t$; a time effect corresponds to a factor with
-$\lambda_i = 1$ for all $i$.  In practice, increase $r$ by 1 to absorb a unit
-additive effect, or by 2 to absorb both unit and time additive effects
-(two-way heterogeneity).
+By default (`force = "none"`) there are no additive fixed effects in (2):
+individual and time heterogeneity is absorbed entirely by the interactive
+factor structure. Additive unit and/or time effects can instead be modelled
+explicitly through the `force` argument (see below), which is the recommended
+route when the data contain a strong common level or trend.
 
 ### Identification
 
@@ -333,6 +344,25 @@ The normalisation $\hat F' \hat F / T = I_r$ and
 $\hat\Lambda' \hat\Lambda$ diagonal identify $F$ and $\Lambda$ up to an
 $r \times r$ rotation.  Only the column space of $F$ (the factor space)
 is identified, which suffices for inference on $\beta$.
+
+### Additive fixed effects via `force`
+
+The `force` argument adds additive unit ($\alpha_i$) and/or time ($\xi_t$)
+effects to model (2):
+
+$$y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i' F_t + u_{it}.$$
+
+Setting `force = "unit"`, `"time"`, or `"two-way"` estimates these effects
+*jointly* with the factors and slope, by removing them from the imputed
+(completed) panel inside the EM loop. Because the demeaning is performed on
+the imputed --- rather than the observed-only --- panel, it is robust to
+informative (selection-related) missingness, unlike a naïve
+observed-cell demeaning. The default `force = "none"` (intercept-free) is
+appropriate when level/trend structure is already captured by the factors;
+choose `force = "two-way"` (matching the balanced `ife()` default) for data
+with a pronounced common level or trend. The degrees-of-freedom adjustment
+for the additive parameters ($N-1$, $T-1$, or $N+T-2$) is carried through to
+the standard errors automatically.
 
 ## Quick start with unbalanced data
 
@@ -438,16 +468,18 @@ cat(sprintf("NNR init: coef = %.5f,  %d outer iterations\n",
             fit_nnr$coef["price"], fit_nnr$n_iter))
 ```
 
-## Exact standard errors (SWW2025 Theorem 4.1)
+## Analytical standard errors
 
-The exact sandwich variance of $\hat\beta$ requires projecting each
-regressor out of both the factor space and the loading space, giving
-*doubly-projected* regressors $\hat x_{itk}$:
+The sandwich variance of $\hat\beta$ follows Su, Wang and Wang (2025) and
+requires projecting each regressor out of both the factor space and the
+loading space, giving *doubly-projected* regressors $\hat x_{itk}$ (the
+unbalanced analogue of the Frisch--Waugh projection used in the balanced
+case):
 
 $$\hat x_{itk} = x_{itk} - \hat\delta_{ki}'\hat F_t - \hat\omega_{kt}'\hat\lambda_i$$
 
-where $\hat\delta_{ki}$ and $\hat\omega_{kt}$ solve the alternating
-least-squares system (SWW2025, eq. 4.3):
+where $\hat\delta_{ki}$ and $\hat\omega_{kt}$ solve, over the observed cells,
+the alternating least-squares system
 
 $$\hat\delta_{ki} = \Bigl(\sum_t d_{it}\hat F_t\hat F_t'\Bigr)^{-1}
 \!\sum_t d_{it}\hat F_t(x_{itk} - \hat\lambda_i'\hat\omega_{kt})$$
@@ -469,8 +501,11 @@ $\hat\Omega_X$ depending on the `se` argument:
 | `"cluster"` | $\frac{1}{NT}\sum_i \psi_i\psi_i'$, $\psi_i = \sum_t d_{it}\hat u_{it}\hat x_{it}$ | Serial correlation within units |
 | `"hac"` | Bartlett kernel over $(t,s)$ pairs: $\frac{1}{NT}\sum_i\sum_{t,s}\Gamma\!\left(\frac{|s-t|}{L_T}\right)d_{it}d_{is}\hat u_{it}\hat u_{is}\hat x_{it}\hat x_{is}'$ | Serial correlation over time within units |
 
-The Bartlett kernel is $\Gamma(u) = (1-u)\mathbf{1}\{u \leq 1\}$; the
-bandwidth defaults to $L_T = \lfloor 2T^{1/5}\rfloor$.
+The cluster-robust variant follows the within-unit clustering of Arellano
+(1987) and Cameron, Gelbach and Miller (2011); the `"hac"` variant uses the
+Bartlett kernel of Newey and West (1987),
+$\Gamma(u) = (1-u)\mathbf{1}\{u \leq 1\}$, with bandwidth defaulting to
+$L_T = \lfloor 2T^{1/5}\rfloor$.
 
 ```{r se_unb}
 fit_std <- ife_unbalanced(sales ~ price, data = cigar_unb,
@@ -493,10 +528,13 @@ data.frame(
 (e.g., in dynamic models or when residuals show autocorrelation).  For
 strictly exogenous regressors with i.i.d. errors, `"cluster"` is sufficient.
 
-## Factor number selection (SWW2025 §3.3)
+## Factor number selection
 
-`ife_select_r_unb()` uses the singular value thresholding (SVT) rule
-applied to the nuclear-norm regularised matrix $\hat\Theta^{(0)}$:
+For unbalanced panels, `ife_select_r_unb()` uses the singular value
+thresholding (SVT) rule of Su, Wang and Wang (2025) applied to the
+nuclear-norm regularised matrix $\hat\Theta^{(0)}$ --- a missing-data
+counterpart of the eigenvalue-ratio / information-criterion rules of Bai and
+Ng (2002):
 
 $$\hat r = \sum_{s=1}^{N \wedge T}
 \mathbf{1}\!\left\{
@@ -504,9 +542,9 @@ $$\hat r = \sum_{s=1}^{N \wedge T}
 c_f\sqrt{c_{NT}^{-1/4}\,\sigma_1\!\left(\frac{\hat\Theta^{(0)}}{\sqrt{NT}}\right)}
 \right\}$$
 
-where $c_{NT} = \min(\sqrt{N}, \sqrt{T})$ and $c_f = 0.6$ (the default
-threshold constant, recommended by SWW2025 for balanced panels and shown
-to work well for mild unbalancedness).
+where $c_{NT} = \min(\sqrt{N}, \sqrt{T})$ and $c_f = 0.6$ is the default
+threshold constant, which performs well for moderate degrees of
+unbalancedness.
 
 ```{r sel_unb, eval=FALSE}
 # Not run during build (NNR cross-validation takes ~10 s)
@@ -522,14 +560,16 @@ The function returns (invisibly):
 - `threshold`: the computed threshold value;
 - `nu_used`: the NNR penalty chosen by cross-validation.
 
-## Analytical bias correction (SWW2025 Theorem 4.2)
+## Analytical bias correction
 
-Even with correct $r$, the unbalanced IFE estimator has asymptotic bias
-$O((NT)^{-1/2})$ from incidental parameters.  Setting `bias_corr = TRUE`
-applies the SWW2025 analytical correction
-$\hat\beta^{abc} = \hat\beta - (NT)^{-1/2}\hat W_X^{-1}\hat b$
-where $\hat b = \hat b_3 + \hat b_4 + \hat b_5 + \hat b_6$ (strictly
-exogenous case):
+Even with the correct $r$, the unbalanced IFE estimator carries an
+incidental-parameter bias of order $O(N^{-1}) + O(T^{-1})$, analogous to the
+$B/N + C/T$ bias of the balanced estimator (Bai 2009) and the dynamic bias of
+Moon and Weidner (2017). Setting `bias_corr = TRUE` applies the analytical
+correction of Su, Wang and Wang (2025),
+$\hat\beta^{abc} = \hat\beta - (NT)^{-1/2}\hat W_X^{-1}\hat b$,
+where, for strictly exogenous regressors,
+$\hat b = \hat b_3 + \hat b_4 + \hat b_5 + \hat b_6$ with
 
 $$\hat b_{3k} = \frac{1}{\sqrt{NT}}\sum_{i,t}
 d_{it}\hat u_{it}^2 \hat\delta_{ki}'[\hat L_{ff}^{-1}]_t\hat\lambda_i$$
@@ -546,7 +586,9 @@ d_{it}\hat u_{it}^2 \hat F_t'\hat\Delta_{ki}\hat F_t$$
 Here $[\hat L_{ff}^{-1}]_t = (\sum_i d_{it}\hat\lambda_i\hat\lambda_i')^{-1}$,
 $[\hat L_{\lambda\lambda}^{-1}]_i = (\sum_t d_{it}\hat F_t\hat F_t')^{-1}$,
 and $\hat\Delta_{ki}$, $\hat\Xi_{kt}$ are $r \times r$ auxiliary matrices
-defined in SWW2025 (page 21).
+formed from $\hat\delta$, $\hat\omega$ and the above inverses; $\hat u_{it}$
+are the model residuals. Full expressions are given in the
+`.ife_bias_unb()` source documentation.
 
 ### Strictly exogenous regressors (`exog = "strict"`)
 
@@ -598,25 +640,35 @@ fit_bc_weak <- ife_unbalanced(y ~ lag_y + x, data = df_dynamic,
 ## Balanced vs unbalanced on the same data
 
 As a sanity check, `ife_unbalanced()` on a complete (balanced) panel
-should agree with `ife(force="none")`:
+should agree with `ife()` under the same `force` specification. We use a
+simulated mean-zero factor panel (on data with a large level, such as
+`cigar`, `force = "none"` is ill-conditioned for both estimators -- the
+factors must absorb the level -- so use `force = "two-way"` there):
 
 ```{r bal_vs_unbal}
-fit_bal <- ife(sales ~ price, data = cigar,
-               index = c("state", "year"), r = 2, force = "none",
-               se = "standard")
+set.seed(99)
+N <- 30; TT <- 22
+F0 <- matrix(rnorm(TT * 2), TT, 2); L0 <- matrix(rnorm(N * 2), N, 2)
+X  <- matrix(rnorm(N * TT), TT, N)
+Y  <- F0 %*% t(L0) + 0.7 * X + matrix(rnorm(N * TT), TT, N)
+sim <- data.frame(unit = rep(seq_len(N), each = TT),
+                  time = rep(seq_len(TT), times = N),
+                  Y = as.vector(Y), X = as.vector(X))
 
-fit_unb2 <- ife_unbalanced(sales ~ price, data = cigar,
-                            index = c("state", "year"), r = 2,
-                            se = "standard")
+fit_bal <- ife(Y ~ X, data = sim, index = c("unit", "time"),
+               r = 2, force = "none", se = "standard")
 
-cat(sprintf("ife (balanced):     %.6f\n", fit_bal$coef["price"]))
-cat(sprintf("ife_unbalanced:     %.6f\n", fit_unb2$coef["price"]))
+fit_unb2 <- ife_unbalanced(Y ~ X, data = sim, index = c("unit", "time"),
+                            r = 2, force = "none", se = "standard")
+
+cat(sprintf("ife (balanced):     %.6f\n", fit_bal$coef["X"]))
+cat(sprintf("ife_unbalanced:     %.6f\n", fit_unb2$coef["X"]))
 cat(sprintf("Difference:         %.2e\n",
-            abs(fit_bal$coef["price"] - fit_unb2$coef["price"])))
+            abs(fit_bal$coef["X"] - fit_unb2$coef["X"])))
 ```
 
-The difference is at most $10^{-4}$ in finite samples (the EM inner loop
-has a convergence tolerance of $10^{-7}$).
+The two estimators agree closely (they follow different iteration paths,
+so agreement is to roughly $10^{-2}$ rather than machine precision).
 
 ---
 
@@ -665,9 +717,10 @@ stop with an informative message if any check fails.
 | `data` | — | long-format `data.frame` (may be unbalanced) |
 | `index` | — | `c("unit_col", "time_col")` |
 | `r` | `1L` | number of factors |
+| `force` | `"none"` | additive FE: `"none"` / `"unit"` / `"time"` / `"two-way"` (estimated jointly with the factors; default is intercept-free) |
 | `se` | `"standard"` | `"standard"` / `"robust"` / `"cluster"` / `"hac"` |
-| `init` | `"ols"` | initialisation: `"ols"` or `"nnr"` |
-| `bias_corr` | `FALSE` | apply SWW2025 analytical bias correction |
+| `init` | `"ols"` | initialisation: `"ols"` or `"nnr"` (nuclear-norm) |
+| `bias_corr` | `FALSE` | apply analytical incidental-parameter bias correction |
 | `exog` | `"strict"` | exogeneity: `"strict"` or `"weak"` |
 | `L_T` | `NULL` | HAC bandwidth ($\lfloor 2T^{1/5}\rfloor$ if `NULL`) |
 | `c_f` | `0.6` | SVT threshold constant (used with `ife_select_r_unb()`) |
@@ -690,14 +743,37 @@ factor models.
 *Econometrica*, **70**(1), 191--221.
 <doi:10.1111/1468-0262.00273>
 
+Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor
+analysis of missing data.
+*Journal of the American Statistical Association*, **116**(536), 1746--1763.
+<doi:10.1080/01621459.2021.1967163>
+
 Baltagi, B. H. (1995). *Econometric Analysis of Panel Data*. Wiley.
+
+Arellano, M. (1987). Computing robust standard errors for within-groups
+estimators.
+*Oxford Bulletin of Economics and Statistics*, **49**(4), 431--434.
+
+Cameron, A. C., Gelbach, J. B. and Miller, D. L. (2011). Robust inference with
+multiway clustering.
+*Journal of Business & Economic Statistics*, **29**(2), 238--249.
+<doi:10.1198/jbes.2010.07136>
+
+Mazumder, R., Hastie, T. and Tibshirani, R. (2010). Spectral regularization
+algorithms for learning large incomplete matrices.
+*Journal of Machine Learning Research*, **11**, 2287--2322.
 
 Moon, H. R. and Weidner, M. (2017). Dynamic linear panel regression models
 with interactive fixed effects.
 *Econometric Theory*, **33**, 158--195.
 <doi:10.1017/S0266466615000328>
 
-Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
-interactive fixed effects panel data models with unbalanced panels.
-SSRN Working Paper 5177283.
+Newey, W. K. and West, K. D. (1987). A simple, positive semi-definite,
+heteroskedasticity and autocorrelation consistent covariance matrix.
+*Econometrica*, **55**(3), 703--708.
+<doi:10.2307/1913610>
+
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for interactive
+fixed effects panel data models with unbalanced panels.
+SSRN Working Paper No. 5177283.
 <doi:10.2139/ssrn.5177283>

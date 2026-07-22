@@ -2,7 +2,7 @@ library(xtife)
 data(cigar, package = "xtife")
 
 # ============================================================================
-# SWW2025 Test Suite — Su, Wang & Wang (2025) implementation in ife_unbalanced
+# Su, Wang and Wang (2025) Test Suite — implementation in ife_unbalanced
 # ============================================================================
 
 # ============================================================================
@@ -48,7 +48,7 @@ test_that("S2: ife_select_r_unb selects r_hat >= 1 on balanced cigar", {
 
 # ============================================================================
 # Test S3 — delta/omega alternating LS: on balanced cigar with r=2
-#   Check that the SWW2025 projected x̂_it is well-defined and has
+#   Check that the Su, Wang and Wang (2025) projected x̂_it is well-defined and has
 #   smaller norm than the raw X (factor component is absorbed)
 # ============================================================================
 test_that("S3: delta/omega produces finite projected regressors with smaller variance", {
@@ -61,7 +61,7 @@ test_that("S3: delta/omega produces finite projected regressors with smaller var
                              index = c("state", "year"),
                              r = 2L, se = "robust")
 
-  # Both use SWW2025 projected regressors internally; SE should be finite
+  # Both use Su, Wang and Wang (2025) projected regressors internally; SE should be finite
   expect_true(all(is.finite(fit_std$se)))
   expect_true(all(is.finite(fit_rob$se)))
 
@@ -95,8 +95,42 @@ test_that("S4: SE is finite and positive on genuinely unbalanced panel", {
   expect_gt(fit_std$se["price"], 0)
   expect_gt(fit_cl$se["price"], 0)
 
-  # Coefficient itself should be in plausible range
-  expect_true(fit_std$coef["price"] > -1.5 && fit_std$coef["price"] < 0)
+  # Coefficient is finite (range checks are force-dependent: with force = "none"
+  # the factors must absorb the data level, so the cigar coef is not the usual
+  # negative demand slope -- that requires additive FE, tested separately in S4b).
+  expect_true(is.finite(fit_std$coef["price"]))
+})
+
+
+# ============================================================================
+# Test S4b — force support matches the balanced ife() on a balanced panel
+# ============================================================================
+test_that("S4b: ife_unbalanced(force=...) matches ife() on a balanced panel", {
+  skip_on_cran()
+
+  # small balanced two-way-FE panel
+  set.seed(11L)
+  N <- 25L; TT <- 20L
+  alpha <- rnorm(N); xi <- rnorm(TT)
+  F0 <- matrix(rnorm(TT * 2), TT, 2); L0 <- matrix(rnorm(N * 2), N, 2)
+  X  <- matrix(rnorm(N * TT), TT, N)
+  Y  <- matrix(alpha, TT, N, byrow = TRUE) + matrix(xi, TT, N) +
+        F0 %*% t(L0) + 0.7 * X + matrix(rnorm(N * TT), TT, N)
+  df <- data.frame(unit = rep(seq_len(N), each = TT),
+                   time = rep(seq_len(TT), times = N),
+                   Y = as.vector(Y), X = as.vector(X))
+
+  # Compare on the CORRECTLY specified model (two-way matches the DGP, which has
+  # additive + interactive FE).  On a balanced panel ife_unbalanced should
+  # reproduce the balanced ife() estimator.  (force = "none"/"unit"/"time" are
+  # misspecified for this DGP, so both estimators chase different local optima
+  # and need not agree -- not a meaningful comparison.)
+  b_bal <- ife(Y ~ X, data = df, index = c("unit", "time"),
+               r = 2L, force = "two-way", se = "standard")$coef["X"]
+  b_unb <- suppressWarnings(
+    ife_unbalanced(Y ~ X, data = df, index = c("unit", "time"),
+                   r = 2L, force = "two-way", se = "standard"))$coef["X"]
+  expect_equal(unname(b_unb), unname(b_bal), tolerance = 1e-2)
 })
 
 
@@ -208,7 +242,7 @@ test_that("S8: all new return fields present with bias_corr = TRUE", {
   expect_true(!is.null(fit$F_hat))
   expect_true(!is.null(fit$Lambda_hat))
 
-  # SWW2025 bias components
+  # Su, Wang and Wang (2025) bias components
   expect_true(!is.null(fit$b_hat))
   expect_true(!is.null(fit$b3))
   expect_true(!is.null(fit$b4))
@@ -458,4 +492,40 @@ test_that("S15: invalid exog and L_T inputs raise errors", {
                    se = "hac", L_T = -1L),
     "'L_T' must be a positive"
   )
+})
+
+
+# ============================================================================
+# Test S16 — Bias correction must NOT over-correct when the raw estimator is
+# unbiased.  Regression guard for the Su, Wang and Wang (2025) Theorem 4.2 sign of the curvature
+# inverse [L-bar_ff']_t = (- sum_i d_it lam lam')^{-1}: b3/b4/b2 use it once and
+# carry the minus sign; b5/b6 use it twice (sign cancels).  For a balanced panel
+# with i.i.d. homoskedastic errors the true incidental-parameter bias is ~0, so
+# b3 and b5 cancel and the correction must be tiny.  With the sign bug the
+# correction was ~0.07-0.08 (b3 and b5 added instead of cancelling).
+# ============================================================================
+test_that("S16: BC does not over-correct an unbiased estimator (L-bar sign)", {
+  skip_on_cran()
+
+  set.seed(7L)
+  N <- 50L; TT <- 50L; r <- 2L; beta_true <- 1.0
+  F_mat <- matrix(rnorm(TT * r), TT, r)
+  Lam   <- matrix(rnorm(N  * r), N,  r)
+  Mu    <- matrix(rnorm(N  * r), N,  r)
+  fc    <- as.vector(Lam %*% t(F_mat))
+  xc    <- as.vector((Lam + Mu) %*% t(F_mat))
+  df    <- expand.grid(unit = seq_len(N), time = seq_len(TT))
+  df$X  <- xc + rnorm(N * TT)
+  df$Y  <- beta_true * df$X + fc + rnorm(N * TT)   # i.i.d. homoskedastic
+
+  fit <- ife_unbalanced(Y ~ X, data = df, index = c("unit", "time"),
+                        r = 2L, se = "standard", bias_corr = TRUE)
+
+  # Correction must be small (was ~0.07 with the sign bug); raw is unbiased.
+  expect_lt(abs(unname(fit$coef["X"] - fit$coef_raw["X"])), 0.02)
+  expect_lt(abs(unname(fit$coef["X"]) - beta_true), 0.05)
+
+  # On a balanced panel b3 and b5 (and b4/b6) cancel -> |b_hat| is small
+  # relative to the individual components.
+  expect_lt(abs(fit$b_hat), abs(fit$b3) + abs(fit$b5))
 })

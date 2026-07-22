@@ -36,11 +36,31 @@ results_dir <- file.path(script_dir, "results")
 tables_dir  <- file.path(script_dir, "tables")
 dir.create(tables_dir, showWarnings = FALSE)
 
-rds_files <- list.files(results_dir, pattern = "\\.rds$", full.names = TRUE)
-if (length(rds_files) == 0L)
-  stop("No .rds files found in: ", results_dir, "\n  Run jobs first.")
+## Error structure to collate (mirrors the worker's MC_ERR). Each variant has a
+## distinct filename tag; output tables get the same tag so the four studies'
+## tables never overwrite each other:
+##   homo "" | hetero "_het" | serial "_ser" | serialhet "_serhet"
+err_type <- Sys.getenv("MC_ERR", unset = "homo")
+if (!err_type %in% c("homo", "hetero", "serial", "serialhet"))
+  stop("MC_ERR must be one of homo/hetero/serial/serialhet (got '", err_type, "').")
+tab_tag  <- switch(err_type, homo = "", hetero = "_het",
+                   serial = "_ser", serialhet = "_serhet")
 
-cat(sprintf("Found %d result files in %s\n", length(rds_files), results_dir))
+## Classify each results file by its error tag (order matters: check the longest
+## tag first so "_serhet" is not mistaken for "_het" or "_ser").
+file_tag <- function(f) {
+  if      (grepl("_serhet\\.rds$", f)) "_serhet"
+  else if (grepl("_ser\\.rds$",    f)) "_ser"
+  else if (grepl("_het\\.rds$",    f)) "_het"
+  else                                 ""
+}
+rds_all   <- list.files(results_dir, pattern = "\\.rds$", full.names = TRUE)
+rds_files <- rds_all[vapply(rds_all, file_tag, character(1)) == tab_tag]
+if (length(rds_files) == 0L)
+  stop("No ", err_type, " .rds files found in: ", results_dir, "\n  Run jobs first.")
+
+cat(sprintf("Collating err='%s': %d of %d result files in %s\n",
+            err_type, length(rds_files), length(rds_all), results_dir))
 
 # ==============================================================================
 # 1 — Parse filenames and load all results
@@ -116,33 +136,48 @@ make_tab_df <- function(sub) {
   )
 }
 
+## BC coverage column label matches the SE type used in mc_xtife_hpc.R:
+##   homo -> BC.Std;  hetero -> BC.Rob;  serial -> BC.Cl;  serialhet -> BC.Cl
+## (DGP 4 always uses HAC and overrides this below.)
+BC_COV_LABEL <- switch(err_type,
+  homo      = "BC.Std",
+  hetero    = "BC.Rob",
+  serial    = "BC.Cl",
+  serialhet = "BC.Cl"
+)
+
 ## Column labels for xtable
 COL_NAMES <- c("$N$", "$T$",
                "OLS", "IFE", "SD", "RMSE",
                "BC", "BC.RMSE",
                "SE/SD",
-               "Std", "Rob", "Cl", "BC.Std",
+               "Std", "Rob", "Cl", BC_COV_LABEL,
                "Size",
                "$P(\\hat r=r)$", "Conv.")
 
 ## Write one .tex table file
+## col_names: override COL_NAMES when a DGP needs different column labels
 write_tex <- function(tab_df, file, caption, label,
-                      add_header = TRUE) {
+                      add_header = TRUE, col_names = COL_NAMES) {
   xt <- xtable(tab_df,
                caption = caption,
                label   = label,
                digits  = 0L)             # all pre-formatted as strings
-  names(xt) <- COL_NAMES
+  names(xt) <- col_names
 
-  ## Multicolumn header for bias / coverage groups
+  ## Multicolumn header for bias / coverage groups.
+  ## Column layout (16 cols): 1=N 2=T | 3-8 Bias&RMSE | 9 SE/SD |
+  ## 10-13 Coverage | 14 Size | 15 P(r=r) | 16 Conv.
+  ## SE/SD (col 9) is a diagnostic ratio, NOT a coverage probability, so it is
+  ## left outside the "95% Coverage" group, which spans only cols 10-13.
   addtorow <- list()
   if (add_header) {
     addtorow$pos <- list(-1L)
     addtorow$command <- paste0(
       "\\hline\n",
-      " & & \\multicolumn{6}{c}{Bias \\& RMSE} & ",
-      "\\multicolumn{5}{c}{95\\% Coverage} & & & \\\\\n",
-      "\\cline{3-8}\\cline{9-13}\n"
+      " & & \\multicolumn{6}{c}{Bias \\& RMSE} & & ",
+      "\\multicolumn{4}{c}{95\\% Coverage} & & & \\\\\n",
+      "\\cline{3-8}\\cline{10-13}\n"
     )
   }
 
@@ -170,7 +205,7 @@ sub1 <- df_all[df_all$dgp_id == 1L, ]
 if (nrow(sub1) > 0L) {
   tab1 <- make_tab_df(sub1)
   write_tex(tab1,
-    file    = file.path(tables_dir, "tab1_static_bal.tex"),
+    file    = file.path(tables_dir, sprintf("tab1_static_bal%s.tex", tab_tag)),
     caption = paste("Monte Carlo results: static balanced panel (DGP 1).",
                     "\\emph{N}: units; \\emph{T}: periods;",
                     "OLS/IFE/BC: bias of each estimator;",
@@ -182,12 +217,18 @@ if (nrow(sub1) > 0L) {
 }
 
 ## --- Tables 2a/2b: Static unbalanced (DGP 2) --------------------------------
+## DGP 2 uses ife_unbalanced() which supports HAC SE directly, so under serial
+## errors BC_SE_UNB = "hac" rather than "cluster".  Relabel when needed.
+COL_NAMES_DGP2 <- COL_NAMES
+if (err_type %in% c("serial", "serialhet"))
+  COL_NAMES_DGP2[COL_NAMES_DGP2 == BC_COV_LABEL] <- "BC.HAC"
+
 for (fi in sort(unique(df_all$fill_int[df_all$dgp_id == 2L]))) {
   sub2 <- df_all[df_all$dgp_id == 2L & df_all$fill_int == fi, ]
   if (nrow(sub2) == 0L) next
   tab2 <- make_tab_df(sub2)
-  write_tex(tab2,
-    file    = file.path(tables_dir, sprintf("tab2_static_unb_f%d.tex", fi)),
+  write_tex(tab2, col_names = COL_NAMES_DGP2,
+    file    = file.path(tables_dir, sprintf("tab2_static_unb_f%d%s.tex", fi, tab_tag)),
     caption = sprintf(
       "Monte Carlo results: static unbalanced panel (DGP 2, fill = %d\\%%).",
       fi),
@@ -195,31 +236,43 @@ for (fi in sort(unique(df_all$fill_int[df_all$dgp_id == 2L]))) {
 }
 
 ## --- Table 3: Dynamic balanced (DGP 3) --------------------------------------
+## DGP 3 uses cluster SE as the HAC proxy (ife() has no explicit HAC option);
+## relabel the "Cl" column as "Cl*" to flag this in the table footnote.
+COL_NAMES_DGP3 <- COL_NAMES
+COL_NAMES_DGP3[COL_NAMES_DGP3 == "Cl"] <- "Cl$^*$"   # * = cluster used as HAC proxy
+
 sub3 <- df_all[df_all$dgp_id == 3L, ]
 if (nrow(sub3) > 0L) {
-  ## For dynamic balanced: replace Cov.Cl column with Cov.HAC label
   tab3 <- make_tab_df(sub3)
-  names(tab3)[names(tab3) == "Cov.Cl"] <- "Cov.Cl*"  # cluster = HAC proxy here
-  write_tex(tab3,
-    file    = file.path(tables_dir, "tab3_dyn_bal.tex"),
+  write_tex(tab3, col_names = COL_NAMES_DGP3,
+    file    = file.path(tables_dir, sprintf("tab3_dyn_bal%s.tex", tab_tag)),
     caption = paste("Monte Carlo results: dynamic balanced panel (DGP 3).",
                     "Regressors: $x_{it} = y_{i,t-1}$; bias correction via Moon \\&",
-                    "Weidner (2017). $T \\geq 50$ only (burn-in requirement)."),
+                    "Weidner (2017). $T \\geq 50$ only (burn-in requirement).",
+                    "$^*$Cluster-robust SE used as within-unit correlation correction",
+                    "(\\texttt{ife()} has no explicit HAC option)."),
     label   = "tab:mc_dyn_bal")
 } else {
   cat("  [SKIP] No DGP 3 results found.\n")
 }
 
 ## --- Tables 4a/4b: Dynamic unbalanced (DGP 4) --------------------------------
+## DGP 4 column labels differ from the default in two positions:
+##   Cov.Cl  → Cov.HAC  (raw IFE + HAC SE, no BC — shows HAC alone is insufficient)
+##   BC.Std  → BC.HAC   (BC estimator uses se="hac"; this is the target ≈95% column)
+COL_NAMES_DGP4 <- COL_NAMES
+COL_NAMES_DGP4[COL_NAMES_DGP4 == "Cl"]           <- "Cov.HAC"   # position 12
+COL_NAMES_DGP4[COL_NAMES_DGP4 == BC_COV_LABEL]   <- "BC.HAC"    # position 13
+
 for (fi in sort(unique(df_all$fill_int[df_all$dgp_id == 4L]))) {
   sub4 <- df_all[df_all$dgp_id == 4L & df_all$fill_int == fi, ]
   if (nrow(sub4) == 0L) next
   tab4 <- make_tab_df(sub4)
-  ## Replace Cov.Cl with Cov.HAC for DGP 4 (HAC SE is the correct one here)
+  ## Replace Cov.Cl column value with the raw IFE+HAC coverage (fit_hac_raw).
+  ## This illustrates that HAC SE alone is insufficient without BC.
   tab4$Cov.Cl <- fmtp(sub4$IFE.Cov.HAC)
-  names(tab4)[names(tab4) == "Cov.Cl"] <- "Cov.HAC"
-  write_tex(tab4,
-    file    = file.path(tables_dir, sprintf("tab4_dyn_unb_f%d.tex", fi)),
+  write_tex(tab4, col_names = COL_NAMES_DGP4,
+    file    = file.path(tables_dir, sprintf("tab4_dyn_unb_f%d%s.tex", fi, tab_tag)),
     caption = sprintf(
       "Monte Carlo results: dynamic unbalanced panel (DGP 4, fill = %d\\%%).",
       fi),
@@ -247,13 +300,13 @@ if (nrow(df_all) > 0L) {
                    "$\\bar r$", "$P(\\hat r=2)$\\%",
                    "$P(\\hat r<2)$\\%", "$P(\\hat r>2)$\\%")
   print(xt5,
-    file             = file.path(tables_dir, "tab5_factor_sel.tex"),
+    file             = file.path(tables_dir, sprintf("tab5_factor_sel%s.tex", tab_tag)),
     include.rownames = FALSE,
     sanitize.text.function = identity,
     hline.after      = c(-1L, 0L, nrow(tab5)),
     floating         = TRUE,
     caption.placement = "top")
-  cat(sprintf("  Written: %s\n", file.path(tables_dir, "tab5_factor_sel.tex")))
+  cat(sprintf("  Written: %s\n", file.path(tables_dir, sprintf("tab5_factor_sel%s.tex", tab_tag))))
 }
 
 # ==============================================================================

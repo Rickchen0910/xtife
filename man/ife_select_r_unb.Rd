@@ -27,9 +27,11 @@ Invisibly returns a list with components \code{r_hat}, \code{sv}
 \code{c_NT}, and \code{nu_used}.
 }
 \description{
-Estimates the number of interactive factors in an unbalanced panel using
-the singular value thresholding (SVT) rule of Su, Wang and Wang (2025,
-Section 3.3, eq. 3.7).
+Estimates the number of interactive factors in an unbalanced panel by
+the singular value thresholding (SVT) rule of Su, Wang and Wang (2025),
+applied to the nuclear-norm-regularised (soft-imputed) matrix --- a
+missing-data counterpart of the information-criterion rules of Bai and Ng
+(2002).
 }
 \examples{
 \donttest{
@@ -42,6 +44,14 @@ Section 3.3, eq. 3.7).
 }
 \references{
 Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
-unbalanced panel data models with interactive fixed effects.
-\emph{SSRN Working Paper} 5177283.
+interactive fixed effects panel data models with unbalanced panels.
+SSRN Working Paper No. 5177283. \doi{10.2139/ssrn.5177283}
+
+Bai, J. and Ng, S. (2002). Determining the number of factors in approximate
+factor models. \emph{Econometrica}, 70(1), 191--221.
+\doi{10.1111/1468-0262.00273}
+
+Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor
+analysis of missing data. \emph{Journal of the American Statistical
+Association}, 116(536), 1746--1763. \doi{10.1080/01621459.2021.1967163}
 }

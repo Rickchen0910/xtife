@@ -477,9 +477,8 @@
 #' @param N,TT,p,r  panel dimensions
 #' @return list with elements:
 #'   beta_bc  p-vector: bias-corrected coefficients
-#'   B_hat    p-vector: estimated cross-section BIAS (Bai sign convention,
-#'            B/N scale): beta_bc = beta - B_hat/N - C_hat/T holds exactly
-#'   C_hat    p-vector: estimated time-heteroskedasticity BIAS (C/T scale)
+#'   B_hat    p-vector: estimated cross-section bias term (pre-scaling by 1/N)
+#'   C_hat    p-vector: estimated time-heteroskedasticity bias term (pre-scaling by 1/T)
 .bias_correct <- function(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde, e_mat,
                           N, TT, p, r) {
 
@@ -531,14 +530,9 @@
 
   beta_bc <- beta + as.vector(D0_inv %*% (B_vec + C_vec))
 
-  # Bai (2009) sign convention: the raw estimator's bias is +B/N + C/T, so the
-  # corrected estimator is beta_bc = beta - B_hat/N - C_hat/T.  The internal
-  # B_vec/C_vec are the (additive) correction contributions, i.e. MINUS the
-  # bias, hence the negation here.  This makes the identity printed by
-  # print.ife() ("beta^ = beta_raw - B/N - C/T") hold exactly.
   list(beta_bc = beta_bc,
-       B_hat   = -as.vector(D0_inv %*% B_vec) * N,   # bias estimate, B/N scale
-       C_hat   = -as.vector(D0_inv %*% C_vec) * TT)  # bias estimate, C/T scale
+       B_hat   = as.vector(D0_inv %*% B_vec) * N,   # reported on the B/N scale
+       C_hat   = as.vector(D0_inv %*% C_vec) * TT)  # reported on the C/T scale
 }
 
 
@@ -570,11 +564,9 @@
 #' @param M1         lag bandwidth for B1 (number of lags to include; default 1)
 #' @return list:
 #'   beta_bc  p-vector: bias-corrected coefficients
-#'   B1_hat   p-vector: dynamic-term contribution  W^-1 B1/T  (additive)
-#'   B2_hat   p-vector: cross-section-het contribution  W^-1 B2/N
-#'   B3_hat   p-vector: time-het contribution  W^-1 B3/T
-#'   The decomposition identity beta_bc = beta + B1_hat + B2_hat + B3_hat
-#'   holds exactly (all scalings and the W^-1 weighting are inside).
+#'   B1_hat   p-vector: dynamic bias term (pre-multiplied by D0_inv; scaled by 1/(NT))
+#'   B2_hat   p-vector: cross-section heteroscedasticity bias (same as Bai B_hat)
+#'   B3_hat   p-vector: time heteroscedasticity bias (same as Bai C_hat)
 .bias_correct_mw <- function(beta, F_hat, Lambda_hat, X_dm_arr, X_tilde,
                               e_mat, N, TT, p, r, M1 = 1L) {
 
@@ -646,14 +638,10 @@
   # beta* = beta + W^{-1}(B1/T + B2/N + B3/T)   [all three added; MW Thm 4.3]
   beta_bc <- beta + as.vector(D0_inv %*% (B1_vec + B2_vec + B3_vec))
 
-  # Store the per-coefficient ADDITIVE CONTRIBUTIONS W^{-1} B_l (with the 1/T or
-  # 1/N scaling already inside B*_vec), so that the decomposition identity
-  #   beta_bc = beta + B1_hat + B2_hat + B3_hat
-  # holds exactly.  print.ife() prints these contributions as-is.
   list(beta_bc = beta_bc,
-       B1_hat  = as.vector(D0_inv %*% B1_vec),
-       B2_hat  = as.vector(D0_inv %*% B2_vec),
-       B3_hat  = as.vector(D0_inv %*% B3_vec))
+       B1_hat  = B1_vec,
+       B2_hat  = B2_vec,
+       B3_hat  = B3_vec)
 }
 
 
@@ -772,16 +760,7 @@ ife <- function(formula,
   time_col <- index[2]
 
   # ---- parse formula ----
-  # Reject transformed formulas: all.vars() strips calls, so log(y) ~ x would
-  # silently estimate y ~ x.  Require plain column names; users should create
-  # transformed variables in `data` first.
-  fml_names <- setdiff(all.names(formula), c("~", "+"))
-  vars      <- all.vars(formula)
-  if (!identical(sort(fml_names), sort(vars)))
-    stop("Formula contains transformations or operators (",
-         paste(setdiff(fml_names, vars), collapse = ", "),
-         "). Create transformed variables in 'data' first, e.g. ",
-         "data$log_y <- log(data$y), then use log_y in the formula.")
+  vars     <- all.vars(formula)
   y_name   <- vars[1]
   x_names  <- vars[-1]
   p        <- length(x_names)
@@ -793,9 +772,6 @@ ife <- function(formula,
 
   # ---- sort and check balance ----
   data <- data[order(data[[id_col]], data[[time_col]]), ]
-  if (anyDuplicated(data[, c(id_col, time_col)]) > 0L)
-    stop("Duplicate (unit, time) pairs found in 'data'. Each unit-time cell ",
-         "must appear exactly once.")
   unit_vals <- unique(data[[id_col]])
   time_vals <- unique(data[[time_col]])
   N <- length(unit_vals)
@@ -826,10 +802,6 @@ ife <- function(formula,
   # check r does not exceed min(N,T)
   if (r > min(N, T))
     stop("r = ", r, " exceeds min(N, T) = ", min(N, T), ".")
-
-  # M1 (dynamic bias-correction lag bandwidth) must leave at least one usable lag
-  if (method == "dynamic" && M1 > T - 1L)
-    stop("M1 = ", M1, " must be <= T - 1 = ", T - 1L, ".")
 
   # ---- reshape to matrix / array form ----
   # Orientation: rows = time, columns = units (T x N)
@@ -1123,16 +1095,14 @@ print.ife <- function(x, digits = 4, ...) {
     if (isTRUE(x$method == "dynamic")) {
       cat("Bias correction (Moon & Weidner 2017): beta* = beta + W^{-1}(B1/T + B2/N + B3/T)\n")
       cat(sprintf("  Method: dynamic  N=%d  T=%d  M1=%d\n", x$N, x$T, x$M1))
-      # B*_hat are the additive contributions W^{-1}B_l (scalings included):
-      # raw + B1 + B2 + B3 = corrected, exactly.
       for (nm in x$x_names) {
         cat(sprintf(
-          "  %-12s raw=%8.4f  B1=%9.6f  B2=%9.6f  B3=%9.6f  corrected=%8.4f\n",
+          "  %-12s raw=%8.4f  B1/T=%9.6f  B2/N=%9.6f  B3/T=%9.6f  corrected=%8.4f\n",
           nm,
           x$coef_raw[nm],
-          x$B1_hat[nm],
-          x$B2_hat[nm],
-          x$B3_hat[nm],
+          x$B1_hat[nm] / x$T,
+          x$B2_hat[nm] / x$N,
+          x$B3_hat[nm] / x$T,
           x$coef[nm]))
       }
     } else {
@@ -1230,29 +1200,12 @@ ife_select_r <- function(formula,
   time_col <- index[2]
 
   # ---- parse formula + basic data prep (mirrors ife() internals) ----
-  # Same transformed-formula guard as ife(): all.vars() strips calls.
-  fml_names <- setdiff(all.names(formula), c("~", "+"))
-  vars      <- all.vars(formula)
-  if (!identical(sort(fml_names), sort(vars)))
-    stop("Formula contains transformations or operators (",
-         paste(setdiff(fml_names, vars), collapse = ", "),
-         "). Create transformed variables in 'data' first.")
+  vars    <- all.vars(formula)
   y_name  <- vars[1]
   x_names <- vars[-1]
   p       <- length(x_names)
 
-  for (v in c(y_name, x_names)) {
-    if (!v %in% names(data))
-      stop("Variable not found in data: ", v)
-    if (any(is.na(data[[v]])))
-      stop("Missing values in variable '", v,
-           "'. Remove rows with NA before calling ife_select_r().")
-  }
-
   data <- data[order(data[[id_col]], data[[time_col]]), ]
-  if (anyDuplicated(data[, c(id_col, time_col)]) > 0L)
-    stop("Duplicate (unit, time) pairs found in 'data'. Each unit-time cell ",
-         "must appear exactly once.")
   N    <- length(unique(data[[id_col]]))
   T    <- length(unique(data[[time_col]]))
 

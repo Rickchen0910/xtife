@@ -1,29 +1,22 @@
 # ============================================================================
-# ife_unbalanced.R — Unbalanced Panel IFE via EM Algorithm
+# ife_unbalanced.R — Unbalanced Panel IFE via EM Algorithm (SWW2025)
 #
-# Model: Y_it = mu + alpha_i + xi_t + X_it' beta + lambda_i' F_t + u_it
-#   Additive fixed effects alpha_i (unit) and xi_t (time) are controlled by
-#   `force` ("none" | "unit" | "time" | "two-way"); they are estimated jointly
-#   with the interactive factors (see .ife_fe_em_unb).  force = "none" is the
-#   intercept-free interactive model.
+# Model: Y_it = X_it' beta + lambda_i' F_t + u_it
+# No additive fixed effects (force = "none" only).
 #
-# Theory:     estimation, inference, and bias correction follow Su, Wang and
-#             Wang (2025); unbalanced extension of Bai (2009)
-# Algorithm:  Bai (2009) Appendix B EM procedure (inner loop); missing-data
-#             factor analysis of Bai and Ng (2021)
-# Inference:  sandwich standard errors and analytical bias correction
+# Algorithm:  Bai (2009) Appendix B EM procedure (inner loop)
+# Inference:  Su, Wang & Wang (2025) exact sandwich SE and bias correction
 #
 # Functions (internal → public):
-#   .ife_em_inner()           — inner EM loop: F and Lambda given beta (force="none")
-#   .ife_fe_em_unb()          — inner EM for additive + interactive FE (force!="none")
-#   .ife_nnr_unb()            — NNR soft-impute initial estimator
-#   .ife_fit_unb()            — outer alternating loop: beta ↔ (F, Lambda [, alpha, xi])
-#   .ife_delta_omega_unb()    — alternating LS for projected regressors
-#   .ife_intermediates_unb()  — auxiliary r x r matrices Delta and Xi
-#   .ife_se_unb()             — sandwich standard errors
-#   .ife_bias_unb()           — analytical bias correction (terms b2-b6)
+#   .ife_em_inner()           — inner EM loop: F and Lambda given beta
+#   .ife_nnr_unb()            — NNR soft-impute initial estimator (SWW2025 §3.2)
+#   .ife_fit_unb()            — outer alternating loop: beta ↔ (F, Lambda)
+#   .ife_delta_omega_unb()    — alternating LS for projected regressors (SWW2025 §4)
+#   .ife_intermediates_unb()  — auxiliary r×r matrices Delta and Xi (SWW2025 §4)
+#   .ife_se_unb()             — exact SWW2025 sandwich SE
+#   .ife_bias_unb()           — analytical bias correction b3–b6 (SWW2025 Thm 4.2)
 #   ife_unbalanced()          — public wrapper, returns class "ife_unb"
-#   ife_select_r_unb()        — SVT factor selection
+#   ife_select_r_unb()        — SVT factor selection (SWW2025 §3.3)
 #   print.ife_unb()           — print method
 # ============================================================================
 
@@ -110,66 +103,7 @@
 
 
 # ----------------------------------------------------------------------------
-# .ife_fe_em_unb — EM for ADDITIVE + INTERACTIVE fixed effects (force support)
-#
-# Estimates the structure  S_it = mu + alpha_i + xi_t + lambda_i' f_t  on an
-# unbalanced panel by the standard EM: impute the missing cells with the current
-# structure, then estimate (mu, alpha, xi, F, Lambda) on the COMPLETED (balanced)
-# matrix via one-shot two-way demeaning + SVD.  Because all demeaning happens on
-# the imputed balanced matrix, it is NOT selection-biased (cf. the old grand-mean
-# centering, which demeaned observed cells only).  Mirrors fect::interFE's
-# fe_ad_inter_iter.  force = "none" reduces to factor-only EM.
-#
-# @param Wm        TT x N residual matrix (Y - X beta), 0 at unobserved cells
-# @param obs_mask  TT x N logical, TRUE = observed
-# @param FE_init   TT x N warm-start structure (0 on first call)
-# @param force     "none" | "unit" | "time" | "two-way"
-# @return list(FE, F_hat, Lambda_hat, alpha, xi, mu, n_iter_em, converged_em)
-# ----------------------------------------------------------------------------
-.ife_fe_em_unb <- function(Wm, obs_mask, FE_init, force, r,
-                           tol_em = 1e-7, max_iter_em = 500L) {
-  TT <- nrow(Wm); N <- ncol(Wm)
-  FE <- FE_init
-  alpha <- numeric(N); xi <- numeric(TT); mu <- 0
-  F_hat <- matrix(0, TT, r); Lambda_hat <- matrix(0, N, r)
-  has_unit <- force %in% c("unit", "two-way")
-  has_time <- force %in% c("time", "two-way")
-  converged_em <- FALSE
-  h <- 0L
-  for (h in seq_len(max_iter_em)) {
-    full <- Wm
-    full[!obs_mask] <- FE[!obs_mask]          # E-step: impute with current structure
-
-    # ---- additive FE on the completed balanced matrix (one-shot, unbiased) ----
-    if (force == "none") {
-      mu <- 0; alpha <- numeric(N); xi <- numeric(TT)
-    } else {
-      mu    <- mean(full)
-      alpha <- if (has_unit) colMeans(full) - mu else numeric(N)
-      xi    <- if (has_time) rowMeans(full) - mu else numeric(TT)
-    }
-    add <- matrix(alpha, TT, N, byrow = TRUE) + matrix(xi, TT, N) + mu
-    D   <- full - add
-
-    # ---- interactive factors via SVD (F'F/TT = I_r) ----
-    sv         <- svd(D, nu = r, nv = 0L)
-    F_hat      <- sv$u[, seq_len(r), drop = FALSE] * sqrt(TT)
-    Lambda_hat <- crossprod(D, F_hat) / TT
-
-    FE_new <- add + F_hat %*% t(Lambda_hat)
-    if (max(abs((FE_new - FE)[obs_mask])) < tol_em) {
-      FE <- FE_new; converged_em <- TRUE; break
-    }
-    FE <- FE_new
-  }
-  list(FE = FE, F_hat = F_hat, Lambda_hat = Lambda_hat,
-       alpha = alpha, xi = xi, mu = mu,
-       n_iter_em = h, converged_em = converged_em)
-}
-
-
-# ----------------------------------------------------------------------------
-# .ife_nnr_unb — NNR soft-impute initial estimator
+# .ife_nnr_unb — NNR soft-impute initial estimator (SWW2025 §3.2, eq. 3.6)
 #
 # Minimises  (1/2) sum_{it} d_it (Y_it - Theta_it - X_it' beta)^2 + nu ||Theta||_*
 # via soft-impute iteration.  Cross-validates the penalty nu over
@@ -303,7 +237,6 @@
 # ----------------------------------------------------------------------------
 .ife_fit_unb <- function(Y_long, X_long, unit_idx, time_idx,
                          N, TT, r,
-                         force        = "none",
                          beta_init    = NULL,
                          F_init       = NULL,
                          Lambda_init  = NULL,
@@ -360,55 +293,6 @@
 
   F_hat      <- if (!is.null(F_init))      F_init      else matrix(0, TT, r)
   Lambda_hat <- if (!is.null(Lambda_init)) Lambda_init else matrix(0, N,  r)
-
-  # ==========================================================================
-  # force != "none": joint ADDITIVE + INTERACTIVE estimation
-  # (OLS-of-(Y - structure)-on-X with the structure estimated by EM on the
-  #  imputed balanced residual; mirrors fect::interFE).  Needed because
-  #  additive and interactive FE are NOT orthogonal, so they must be estimated
-  #  jointly; the imputed-balanced demeaning is selection-robust.
-  # ==========================================================================
-  if (force != "none" && p > 0L) {
-    Ym <- matrix(0, TT, N); Ym[obs_lin] <- Y_long
-    Xc <- lapply(seq_len(p), function(k) {
-      m <- matrix(0, TT, N); m[obs_lin] <- X_long[, k]; m
-    })
-    xxinv <- solve(crossprod(X_long))      # (X'X)^{-1} over observed cells
-    FE    <- matrix(0, TT, N)              # warm-start full structure
-    alpha <- numeric(N); xi <- numeric(TT); mu <- 0
-    converged <- FALSE; n_iter <- 0L
-    for (iter in seq_len(max_iter)) {
-      n_iter   <- iter
-      beta_old <- beta
-      covar <- matrix(0, TT, N)
-      for (k in seq_len(p)) covar <- covar + Xc[[k]] * beta[k]
-      W_mat <- Ym - covar; W_mat[!obs_mask] <- 0
-      em <- .ife_fe_em_unb(W_mat, obs_mask, FE, force, r,
-                           tol_em = tol_em, max_iter_em = max_iter_em)
-      FE <- em$FE; F_hat <- em$F_hat; Lambda_hat <- em$Lambda_hat
-      alpha <- em$alpha; xi <- em$xi; mu <- em$mu
-      beta_new <- as.vector(xxinv %*% crossprod(X_long, (Ym - FE)[obs_lin]))
-      if (max(abs(beta_new - beta_old)) < tol) {
-        beta <- beta_new; converged <- TRUE; break
-      }
-      beta <- beta_new
-    }
-    if (!converged)
-      warning("ife_unbalanced (force = '", force, "'): outer loop did not ",
-              "converge in ", max_iter, " iterations. Estimate may be ",
-              "unreliable; consider force = 'none' or a larger panel.")
-    covar <- matrix(0, TT, N)
-    for (k in seq_len(p)) covar <- covar + Xc[[k]] * beta[k]
-    u_long <- (Ym - covar - FE)[obs_lin]
-    return(list(
-      beta = beta, F_hat = F_hat, Lambda_hat = Lambda_hat,
-      alpha = alpha, xi = xi, mu = mu, force = force,
-      X_tilde_long = X_long, u_long = u_long,
-      obs_mask = obs_mask, obs_lin = obs_lin,
-      unit_rows = unit_rows, unit_obs_t = unit_obs_t,
-      n_iter = n_iter, converged = converged
-    ))
-  }
 
   X_tilde_long <- X_long
   converged    <- FALSE
@@ -493,10 +377,6 @@
     beta         = beta,
     F_hat        = F_hat,
     Lambda_hat   = Lambda_hat,
-    alpha        = numeric(N),
-    xi           = numeric(TT),
-    mu           = 0,
-    force        = "none",
     X_tilde_long = X_tilde_long,
     u_long       = u_long,
     obs_mask     = obs_mask,
@@ -510,7 +390,7 @@
 
 
 # ----------------------------------------------------------------------------
-# .ife_delta_omega_unb — Alternating LS for projected regressors
+# .ife_delta_omega_unb — Alternating LS for projected regressors (SWW2025 §4)
 #
 # For each regressor k = 1..p, solves:
 #   min_{delta_ki, omega_kt} sum_{it} d_it (x_itk - delta_ki' f_t - omega_kt' lambda_i)^2
@@ -540,13 +420,9 @@
   time_obs_i <- lapply(time_rows,   function(idx) unit_idx[idx])
 
   # ---- Precompute L_lam_inv[[i]] = (F_hat[T_i,]' F_hat[T_i,])^{-1} ----
-  # NA-guard (mirrors L_ff_inv below): a unit observed fewer than r times gives a
-  # rank-deficient crossprod(F_i); return NA so downstream anyNA() checks skip it
-  # instead of solve() throwing.  Matters when force != "none" inflates r to r_eff.
   L_lam_inv <- lapply(seq_len(N), function(i) {
     t_i <- unit_obs_t[[i]]
     F_i <- F_hat[t_i, , drop = FALSE]    # T_i x r
-    if (nrow(F_i) < r) return(matrix(NA_real_, r, r))
     solve(crossprod(F_i))
   })
 
@@ -575,7 +451,7 @@
       for (i in seq_len(N)) {
         obs_i    <- unit_rows[[i]]
         t_i      <- unit_obs_t[[i]]
-        if (length(t_i) == 0L || anyNA(L_lam_inv[[i]])) next
+        if (length(t_i) == 0L) next
 
         F_i      <- F_hat[t_i, , drop = FALSE]     # T_i x r
         lam_i    <- Lambda_hat[i, ]                 # r-vector
@@ -674,9 +550,9 @@
 
 
 # ----------------------------------------------------------------------------
-# .ife_se_unb — Sandwich standard errors
+# .ife_se_unb — Exact SWW2025 sandwich SE (Theorem 4.1)
 #
-# Uses factor-projected regressors:
+# Uses SWW2025 projected regressors:
 #   x_hat_itk = x_itk - delta_ki' f_t - omega_kt' lambda_i
 #
 # Sandwich: Var(beta_hat) = W_x^{-1} Omega_x W_x^{-1} / NT
@@ -684,7 +560,7 @@
 #   Omega_x depends on se_type:
 #     "standard" / "robust" — i.i.d. or HC1 (cross-sectionally independent)
 #     "cluster"             — cluster-robust by unit
-#     "hac"                 — HAC with Bartlett kernel (Newey-West 1987)
+#     "hac"                 — HAC with Bartlett kernel (SWW2025 p.21)
 #
 # @param beta         p-vector of estimated coefficients
 # @param X_long       n_obs x p raw covariate matrix
@@ -709,13 +585,12 @@
                          N, TT, r, se_type, n_obs,
                          unit_rows  = NULL,
                          unit_obs_t = NULL,
-                         L_T        = NULL,
-                         fe_dof     = 0L) {
+                         L_T        = NULL) {
 
   p <- length(beta)
   if (p == 0L) stop("Cannot compute SE with no covariates.")
 
-  # ---- Build x_proj_long (n_obs x p): factor-projected regressors ----
+  # ---- Build x_proj_long (n_obs x p): SWW2025 projected regressors ----
   # x_hat_itk = x_itk - delta_ki' f_t - omega_kt' lambda_i
   x_proj_long <- X_long
 
@@ -735,11 +610,7 @@
   }
 
   # ---- Degrees of freedom ----
-  # r here is the TRUE number of interactive factors; fe_dof is the additive-FE
-  # dof (0 / N-1 / T-1 / N+T-2).  The projection above uses the augmented
-  # F_hat/delta/omega (which carry extra additive-FE columns), but the parameter
-  # count must use the true interactive r plus the additive-FE dof.
-  k_total <- p + r * (N + TT - r) + fe_dof
+  k_total <- p + r * (N + TT - r)
   df <- n_obs - k_total
   if (df <= 0L)
     stop("Degrees of freedom = ", df, " <= 0. Reduce r or use a larger panel.")
@@ -778,7 +649,7 @@
     corr     <- (N / (N - 1L)) * ((n_obs - 1L) / (n_obs - p))
     vcov_mat <- A_inv %*% B %*% A_inv * corr
 
-  } else {   # "hac" — Bartlett kernel (Newey-West 1987)
+  } else {   # "hac" — Bartlett kernel, SWW2025 p.21
 
     # B_hac accumulates UNNORMALIZED sum (same convention as B in "robust"):
     #   B_hac = sum_i sum_{t,s in obs_i}
@@ -824,7 +695,7 @@
 
 
 # ----------------------------------------------------------------------------
-# .ife_bias_unb — Analytical bias correction
+# .ife_bias_unb — Analytical bias correction (SWW2025 Theorem 4.2)
 #
 # Computes bias terms for two cases:
 #
@@ -907,7 +778,7 @@
       delta_ki <- delta_arr[[k]][i, ]   # r-vector
       omega_kt <- omega_arr[[k]][t, ]   # r-vector
 
-      # The bias-correction theory defines [Lbar_ff']_t = (-sum_i d_it lam_i lam_i')^{-1}
+      # SWW2025 Thm 4.2 defines [Lbar_ff']_t = (-sum_i d_it lam_i lam_i')^{-1}
       # and [Lbar_lam']_i = (-sum_t d_it f_t f_t')^{-1}, i.e. the NEGATIVE of the
       # positive-definite inverses stored in Lff_t / Llam_i.  b3 and b4 use this
       # inverse ONCE, so they pick up the leading minus sign.  b5 and b6 use it
@@ -1032,71 +903,65 @@
 #
 #' Unbalanced Panel Interactive Fixed Effects Estimator
 #'
-#' Fits the interactive fixed effects model
-#' \deqn{Y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i'F_t + u_{it}}
-#' for unbalanced panels (units observed at different sets of time periods),
-#' where the additive unit effects \eqn{\alpha_i} and time effects \eqn{\xi_t}
-#' are controlled by \code{force}. The estimation and inference theory follows
-#' Su, Wang and Wang (2025). Estimation uses an alternating outer loop
-#' that updates \eqn{\hat\beta} and the structure \eqn{(\hat\alpha, \hat\xi,
-#' \hat\lambda, \hat F)}, with an expectation-maximisation (EM) inner loop ---
-#' in the spirit of Bai (2009, Appendix B) and the missing-data factor /
-#' matrix-completion framework of Bai and Ng (2021) --- that imputes the
-#' unobserved cells from the current structure and re-estimates the additive
-#' and interactive components on the completed panel. An optional
-#' nuclear-norm-regularised (soft-impute) warm start (Mazumder, Hastie and
-#' Tibshirani 2010) is available via \code{init = "nnr"}.
+#' Fits the pure interactive fixed effects model
+#' \deqn{Y_{it} = X_{it}'\beta + \lambda_i'F_t + u_{it}}
+#' for unbalanced panels (units observed at different sets of time periods)
+#' via an Alternating Maximisation (AM) outer loop that iterates between
+#' updating \eqn{\hat\beta} and the factors \eqn{(\hat\lambda, \hat F)},
+#' with the EM algorithm of Bai (2009) Appendix B used as the inner loop
+#' to update \eqn{(\hat\lambda, \hat F)} given \eqn{\beta}.
+#' Exact inferential statistics (standard errors and bias correction) follow
+#' Su, Wang and Wang (2025).
 #'
-#' **Inference.** Standard errors use a sandwich estimator on factor-projected
-#' regressors (the unbalanced analogue of the balanced formula of Bai 2009),
-#' following Su, Wang and Wang (2025), with heteroskedasticity-robust,
-#' cluster-robust (Arellano 1987; Cameron, Gelbach and Miller 2011) and HAC
-#' (Newey and West 1987) variants. The optional analytical bias correction of
-#' Su, Wang and Wang (2025) removes the leading incidental-parameter bias,
-#' extending the corrections of Bai (2009) and Moon and Weidner (2017) to the
-#' unbalanced and predetermined-regressor case.
+#' **Additive fixed effects.**  The SWW2025 model does not include explicit
+#' additive unit effects \eqn{\alpha_i} or time effects \eqn{\xi_t}.
+#' SWW2025 (p.13, Theorem 3.2 discussion) states that the convergence and
+#' asymptotic theory extend "in spirit" to two-way fixed effects models, and
+#' (p.17, eq.\ 4.1--4.2 discussion) that "linear/nonlinear panels with one
+#' way/two way/interactive fixed effects are all covered by this framework."
+#' However, SWW2025 does not formally derive the SE or bias-correction
+#' formulas for the explicitly demeaned unbalanced case.
 #'
-#' **Additive fixed effects.** With \code{force = "none"} (default) the model
-#' is intercept-free and all heterogeneity is carried by the interactive
-#' factors. Setting \code{force = "unit"}, \code{"time"} or \code{"two-way"}
-#' estimates the additive effects jointly with the factors by demeaning the
-#' \emph{imputed} (completed) panel inside the EM loop, which is robust to
-#' informative missingness; the degrees-of-freedom adjustment is propagated to
-#' the standard errors.
+#' The standard approach — supported by Bai (2009, p.1), who shows that
+#' two-way additive effects equal \eqn{\lambda_i'F_t} for the special choice
+#' \eqn{F_t = (1,\,\xi_t)'}, \eqn{\lambda_i = (\alpha_i,\,1)'} — is to
+#' absorb the additive effects into the factor structure by increasing \eqn{r}:
+#' \itemize{
+#'   \item Unit FE only: set \code{r = r_true + 1}.
+#'   \item Two-way FE: set \code{r = r_true + 2}.
+#' }
+#' The SWW2025 inferential theory (SE and bias correction) then applies
+#' directly to the augmented factor model.
 #'
 #' @param formula R formula: \code{outcome ~ covariate1 + covariate2 + ...}
 #' @param data    Data frame in long format (one row per observed unit-time
 #'   pair).
 #' @param index   Character vector of length 2: \code{c("unit_col", "time_col")}.
 #' @param r       Positive integer. Number of interactive factors (default 1).
-#' @param force   Additive fixed effects to remove jointly with the factors:
-#'   \code{"none"} (default; intercept-free interactive model),
-#'   \code{"unit"}, \code{"time"}, or \code{"two-way"}. Additive FE are
-#'   estimated jointly with the factors via EM on the imputed (completed)
-#'   panel, which is robust to informative (factor-correlated) missingness;
-#'   use \code{force = "two-way"} for data with level/trend structure (matching
-#'   the balanced \code{ife()} default). Note: with strong, near-collinear
-#'   common trends, \code{"two-way"} can converge slowly.
+#'   To absorb additive fixed effects into the factor structure (the
+#'   recommended approach for unbalanced panels; see Description), set
+#'   \code{r = r_true + 1} for unit FE or \code{r = r_true + 2} for two-way
+#'   FE.
 #' @param se      SE type: \code{"standard"} (homoskedastic),
 #'   \code{"robust"} (HC1), \code{"cluster"} (cluster-robust by unit), or
-#'   \code{"hac"} (HAC with a Bartlett kernel, for serially correlated errors).
-#'   Default \code{"standard"}.
+#'   \code{"hac"} (HAC with Bartlett kernel, for serially correlated errors;
+#'   SWW2025 p.21). Default \code{"standard"}.
 #' @param init    Initialisation method: \code{"ols"} (default, grand-mean OLS)
-#'   or \code{"nnr"} (nuclear-norm regularisation / soft-impute).
-#' @param bias_corr Logical. Apply the analytical incidental-parameter bias
+#'   or \code{"nnr"} (nuclear-norm regularisation, SWW2025 Section 3.2).
+#' @param bias_corr Logical. Apply the SWW2025 Theorem 4.2 analytical bias
 #'   correction. Supports both strictly and weakly exogenous regressors
 #'   (controlled by \code{exog}). Default \code{FALSE}.
 #' @param exog    Exogeneity assumption: \code{"strict"} (default, regressors
 #'   uncorrelated with past and future errors) or \code{"weak"} (weakly
 #'   exogenous, e.g., lagged dependent variable \eqn{x_{it} = y_{i,t-1}}).
-#'   When \code{"weak"} and \code{bias_corr = TRUE}, an additional dynamic
-#'   bias term \eqn{\hat{b}_2} is included.
+#'   When \code{"weak"} and \code{bias_corr = TRUE}, the additional
+#'   \eqn{\hat{b}_2} term from SWW2025 Theorem 4.2 is computed.
 #' @param L_T     Bartlett kernel bandwidth for HAC standard errors (\code{se
 #'   = "hac"}) and the dynamic bias term \eqn{\hat{b}_2} (\code{exog =
 #'   "weak"}, \code{bias_corr = TRUE}). If \code{NULL} (default), set to
 #'   \eqn{\lfloor 2 T^{1/5} \rfloor} after the panel dimensions are known.
-#' @param c_f     Singular-value-thresholding constant (default 0.6) used for
-#'   factor-number selection. Used only when \code{init = "nnr"}.
+#' @param c_f     SVT threshold constant (default 0.6, SWW2025 eq. 3.7).
+#'   Used only when \code{init = "nnr"}.
 #' @param nu_NT   NNR penalty grid. If \code{NULL} (default), cross-validates
 #'   over \code{c * sqrt(max(N, TT))} for \code{c} in \code{c(0.01, 0.1, 1, 10)}.
 #' @param tol     Outer-loop convergence tolerance on
@@ -1139,24 +1004,12 @@
 #' }
 #'
 #' @references
-#' Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
-#' interactive fixed effects panel data models with unbalanced panels.
-#' SSRN Working Paper No. 5177283. \doi{10.2139/ssrn.5177283}
-#'
 #' Bai, J. (2009). Panel data models with interactive fixed effects.
 #' \emph{Econometrica}, 77(4), 1229--1279. \doi{10.3982/ECTA6135}
 #'
-#' Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor
-#' analysis of missing data. \emph{Journal of the American Statistical
-#' Association}, 116(536), 1746--1763. \doi{10.1080/01621459.2021.1967163}
-#'
-#' Mazumder, R., Hastie, T. and Tibshirani, R. (2010). Spectral regularization
-#' algorithms for learning large incomplete matrices. \emph{Journal of Machine
-#' Learning Research}, 11, 2287--2322.
-#'
-#' Moon, H. R. and Weidner, M. (2017). Dynamic linear panel regression models
-#' with interactive fixed effects. \emph{Econometric Theory}, 33, 158--195.
-#' \doi{10.1017/S0266466615000328}
+#' Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
+#' unbalanced panel data models with interactive fixed effects.
+#' \emph{SSRN Working Paper} 5177283.
 #'
 #' @importFrom stats pt qt
 #' @export
@@ -1174,7 +1027,6 @@ ife_unbalanced <- function(formula,
                             data,
                             index,
                             r           = 1L,
-                            force       = "none",
                             se          = "standard",
                             init        = "ols",
                             bias_corr   = FALSE,
@@ -1213,9 +1065,6 @@ ife_unbalanced <- function(formula,
   if (!exog %in% c("strict", "weak"))
     stop("'exog' must be 'strict' (default) or 'weak' (dynamic/lagged dep. var.).")
 
-  if (!force %in% c("none", "unit", "time", "two-way"))
-    stop("'force' must be one of: 'none', 'unit', 'time', 'two-way'.")
-
   L_T_arg <- L_T   # store user input; resolved after TT is known
 
   r <- as.integer(r)
@@ -1239,10 +1088,6 @@ ife_unbalanced <- function(formula,
   p        <- length(x_names)
   id_col   <- index[1L]
   time_col <- index[2L]
-
-  if (force != "none" && p == 0L)
-    stop("force = '", force, "' requires at least one covariate; the ",
-         "no-covariate case is not supported (use force = 'none').")
 
   all_needed <- c(y_name, x_names, id_col, time_col)
   missing_v  <- setdiff(all_needed, names(data))
@@ -1303,18 +1148,18 @@ ife_unbalanced <- function(formula,
   storage.mode(X_long) <- "double"
 
   # ================================================================
-  # No grand-mean centering.
-  # the interactive-FE model has no intercept; the factor structure absorbs any
-  # level.  Grand-mean centering subtracts the OBSERVED-cell mean, which is
-  # selection-biased under informative (factor-correlated) missingness
-  # (e.g. factor-correlated missingness, d_it ~ Phi(lambda_i'f_t)) and biases beta -- it
-  # even sign-flips beta_1 in the dynamic Pattern-2 case.  Removing it makes
-  # the estimator match the observed-cell objective (and fect::interFE).
+  # Grand-mean centering
   # ================================================================
-  mu_Y     <- 0
-  Y_long_c <- Y_long
-  mu_X     <- if (p > 0L) numeric(p) else numeric(0L)
-  X_long_c <- X_long
+  mu_Y     <- mean(Y_long)
+  Y_long_c <- Y_long - mu_Y
+
+  if (p > 0L) {
+    mu_X     <- colMeans(X_long)
+    X_long_c <- X_long - matrix(mu_X, nrow = n_obs, ncol = p, byrow = TRUE)
+  } else {
+    mu_X     <- numeric(0L)
+    X_long_c <- X_long
+  }
 
   # ================================================================
   # Initialisation: OLS or NNR
@@ -1350,7 +1195,6 @@ ife_unbalanced <- function(formula,
     unit_idx    = unit_idx,
     time_idx    = time_idx,
     N = N, TT = TT, r = r,
-    force       = force,
     beta_init   = beta_init,
     F_init      = F_init,
     Lambda_init = Lambda_init,
@@ -1365,7 +1209,7 @@ ife_unbalanced <- function(formula,
             " iterations. Increase max_iter or relax tol.")
 
   # ================================================================
-  # factor-projected regressors, exact SE, and bias correction
+  # SWW2025 projected regressors, exact SE, and bias correction
   # ================================================================
   coef_vec <- fit$beta
   coef_raw <- NULL      # pre-correction estimate (set below if bias_corr)
@@ -1381,47 +1225,14 @@ ife_unbalanced <- function(formula,
 
   if (p > 0L) {
 
-    # ---- Additive-FE augmentation (force != "none") ----
-    # Represent additive FE as constant-structure factor columns so the
-    # projection machinery (delta/omega, SE, bias correction) removes the
-    # additive FE together with the interactive factors:
-    #   unit FE alpha_i : factor column 1_T, loading column alpha
-    #   time FE xi_t    : factor column xi,  loading column 1_N
-    # df is corrected to the TRUE additive-FE dof (not the augmented factor
-    # count) further below.
-    F_eff   <- fit$F_hat
-    Lam_eff <- fit$Lambda_hat
-    if (force %in% c("unit", "two-way")) {
-      F_eff   <- cbind(F_eff,   rep(1, TT))
-      Lam_eff <- cbind(Lam_eff, fit$alpha)
-    }
-    if (force %in% c("time", "two-way")) {
-      F_eff   <- cbind(F_eff,   fit$xi)
-      Lam_eff <- cbind(Lam_eff, rep(1, N))
-    }
-    # Re-orthonormalise the augmented factors so F_eff'F_eff/TT = I (    # Thm 4.2 normalisation), while preserving the fitted structure
-    # F_eff %*% t(Lam_eff).  The SE projection is rotation-invariant, but the
-    # bias-correction b-terms assume orthonormal factors; the raw cbind columns
-    # (1_T, xi) are not orthonormal.  Skipped for force = "none" (fit$F_hat
-    # already satisfies F'F/TT = I, leaving that path byte-identical).
-    if (force != "none") {
-      sv_eff  <- svd(F_eff)
-      F_eff   <- sv_eff$u * sqrt(TT)
-      Lam_eff <- Lam_eff %*% sv_eff$v %*% diag(sv_eff$d, length(sv_eff$d)) / sqrt(TT)
-    }
-    r_eff <- ncol(F_eff)
-
-    fe_dof <- switch(force, none = 0L, unit = N - 1L,
-                     time = TT - 1L, "two-way" = N + TT - 2L)
-
     # ---- Step 1: alternating LS for delta and omega ----
     do_res <- .ife_delta_omega_unb(
       X_long     = X_long_c,
-      F_hat      = F_eff,
-      Lambda_hat = Lam_eff,
+      F_hat      = fit$F_hat,
+      Lambda_hat = fit$Lambda_hat,
       unit_idx   = unit_idx,
       time_idx   = time_idx,
-      N = N, TT = TT, r = r_eff, p = p,
+      N = N, TT = TT, r = r, p = p,
       unit_rows  = fit$unit_rows,
       unit_obs_t = fit$unit_obs_t
     )
@@ -1430,13 +1241,13 @@ ife_unbalanced <- function(formula,
     intermed <- .ife_intermediates_unb(
       delta_arr  = do_res$delta_arr,
       omega_arr  = do_res$omega_arr,
-      F_hat      = F_eff,
-      Lambda_hat = Lam_eff,
+      F_hat      = fit$F_hat,
+      Lambda_hat = fit$Lambda_hat,
       L_ff_inv   = do_res$L_ff_inv,
       L_lam_inv  = do_res$L_lam_inv,
       unit_obs_t = fit$unit_obs_t,
       time_obs_i = do_res$time_obs_i,
-      N = N, TT = TT, r = r_eff, p = p
+      N = N, TT = TT, r = r, p = p
     )
 
     # ---- Step 3: exact SE ----
@@ -1445,8 +1256,8 @@ ife_unbalanced <- function(formula,
       X_long      = X_long_c,
       delta_arr   = do_res$delta_arr,
       omega_arr   = do_res$omega_arr,
-      F_hat       = F_eff,
-      Lambda_hat  = Lam_eff,
+      F_hat       = fit$F_hat,
+      Lambda_hat  = fit$Lambda_hat,
       u_long      = fit$u_long,
       unit_idx    = unit_idx,
       time_idx    = time_idx,
@@ -1455,8 +1266,7 @@ ife_unbalanced <- function(formula,
       n_obs      = n_obs,
       unit_rows  = fit$unit_rows,
       unit_obs_t = fit$unit_obs_t,
-      L_T        = L_T,
-      fe_dof     = fe_dof
+      L_T        = L_T
     )
     vcov_mat <- se_list$vcov_mat
     df_resid <- se_list$df
@@ -1467,8 +1277,8 @@ ife_unbalanced <- function(formula,
         beta       = fit$beta,
         delta_arr  = do_res$delta_arr,
         omega_arr  = do_res$omega_arr,
-        F_hat      = F_eff,
-        Lambda_hat = Lam_eff,
+        F_hat      = fit$F_hat,
+        Lambda_hat = fit$Lambda_hat,
         u_long     = fit$u_long,
         unit_idx   = unit_idx,
         time_idx   = time_idx,
@@ -1579,19 +1389,17 @@ ife_unbalanced <- function(formula,
 
 
 # ----------------------------------------------------------------------------
-# ife_select_r_unb — SVT factor selection for unbalanced panels
+# ife_select_r_unb — SVT factor selection for unbalanced panels (SWW2025 §3.3)
 #
-# Applies a singular value thresholding rule:
+# Applies the singular value thresholding rule (eq. 3.7):
 #   r_hat = #{s : sigma_s(Theta_hat / sqrt(NT)) >= c_f * sqrt(c_NT^{-1/4} * sigma_1)}
 # where Theta_hat is the NNR soft-imputed matrix and c_NT = min(sqrt(N), sqrt(T)).
 #
 #' Factor Number Selection for Unbalanced Panel IFE via SVT
 #'
-#' Estimates the number of interactive factors in an unbalanced panel by
-#' the singular value thresholding (SVT) rule of Su, Wang and Wang (2025),
-#' applied to the nuclear-norm-regularised (soft-imputed) matrix --- a
-#' missing-data counterpart of the information-criterion rules of Bai and Ng
-#' (2002).
+#' Estimates the number of interactive factors in an unbalanced panel using
+#' the singular value thresholding (SVT) rule of Su, Wang and Wang (2025,
+#' Section 3.3, eq. 3.7).
 #'
 #' @param formula R formula: \code{outcome ~ covariate1 + covariate2 + ...}
 #' @param data    Data frame in long format.
@@ -1608,16 +1416,8 @@ ife_unbalanced <- function(formula,
 #'
 #' @references
 #' Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
-#' interactive fixed effects panel data models with unbalanced panels.
-#' SSRN Working Paper No. 5177283. \doi{10.2139/ssrn.5177283}
-#'
-#' Bai, J. and Ng, S. (2002). Determining the number of factors in approximate
-#' factor models. \emph{Econometrica}, 70(1), 191--221.
-#' \doi{10.1111/1468-0262.00273}
-#'
-#' Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor
-#' analysis of missing data. \emph{Journal of the American Statistical
-#' Association}, 116(536), 1746--1763. \doi{10.1080/01621459.2021.1967163}
+#' unbalanced panel data models with interactive fixed effects.
+#' \emph{SSRN Working Paper} 5177283.
 #'
 #' @export
 #'
@@ -1685,12 +1485,14 @@ ife_select_r_unb <- function(formula, data, index,
   }
   storage.mode(X_long) <- "double"
 
-  # No grand-mean centering (see note in the main wrapper above): the
-  # observed-cell mean is selection-biased under informative missingness.
-  mu_Y     <- 0
-  Y_long_c <- Y_long
-  mu_X     <- if (p > 0L) numeric(p) else numeric(0L)
-  X_long_c <- X_long
+  mu_Y     <- mean(Y_long)
+  Y_long_c <- Y_long - mu_Y
+  if (p > 0L) {
+    mu_X     <- colMeans(X_long)
+    X_long_c <- X_long - matrix(mu_X, nrow = n_obs, ncol = p, byrow = TRUE)
+  } else {
+    X_long_c <- X_long
+  }
 
   obs_lin <- (unit_idx - 1L) * TT + time_idx
   c_grid  <- if (is.null(nu_NT)) c(0.01, 0.1, 1, 10) else nu_NT / sqrt(max(N, TT))
@@ -1706,14 +1508,14 @@ ife_select_r_unb <- function(formula, data, index,
 
   Theta0 <- nnr$Theta0   # TT x N
 
-  # ---- SVT  ----
+  # ---- SVT (SWW2025 eq. 3.7) ----
   sv_norm <- svd(Theta0 / sqrt(N * TT), nu = 0L, nv = 0L)$d
   c_NT    <- min(sqrt(N), sqrt(TT))
   thr     <- c_f * sqrt(c_NT^(-0.25) * sv_norm[1L])
   r_hat   <- max(1L, as.integer(sum(sv_norm >= thr)))
 
   if (verbose) {
-    cat("\nSVT Factor Selection (singular value thresholding)\n")
+    cat("\nSVT Factor Selection  (Su, Wang & Wang 2025, eq. 3.7)\n")
     cat(strrep("-", 54L), "\n")
     cat(sprintf("N = %d  TT = %d  n_obs = %d  (%.1f%% fill)\n",
                 N, TT, n_obs, 100 * n_obs / (N * TT)))
@@ -1751,7 +1553,7 @@ ife_select_r_unb <- function(formula, data, index,
 print.ife_unb <- function(x, digits = 4L, ...) {
 
   cat("\n")
-  cat("Unbalanced Panel Interactive Fixed Effects\n")
+  cat("Unbalanced Panel IFE  (Su, Wang & Wang 2025)\n")
   cat(strrep("-", 58L), "\n")
   cat(sprintf("Panel    : N = %d units,  TT = %d periods (max)\n",
               x$N, x$TT))
@@ -1775,7 +1577,7 @@ print.ife_unb <- function(x, digits = 4L, ...) {
                 sprintf("  (nu = %.4f)", x$nu_used)
               else ""))
   if (x$bias_corr)
-    cat(sprintf("Bias corr: YES (analytical, %s)\n",
+    cat(sprintf("Bias corr: YES (SWW2025 Theorem 4.2, %s)\n",
                 if (!is.null(x$exog) && x$exog == "weak")
                   "weak exogeneity"
                 else "strict exogeneity"))

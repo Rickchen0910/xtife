@@ -7,3 +7,6 @@
 *.tar.gz
 *.o
 *.so
+data-raw/hpc/results/
+data-raw/hpc/tables/*.aux
+data-raw/hpc/tables/*.log

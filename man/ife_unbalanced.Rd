@@ -9,6 +9,7 @@ ife_unbalanced(
   data,
   index,
   r = 1L,
+  force = "none",
   se = "standard",
   init = "ols",
   bias_corr = FALSE,
@@ -30,37 +31,42 @@ pair).}
 
 \item{index}{Character vector of length 2: \code{c("unit_col", "time_col")}.}
 
-\item{r}{Positive integer. Number of interactive factors (default 1).
-To absorb additive fixed effects into the factor structure (the
-recommended approach for unbalanced panels; see Description), set
-\code{r = r_true + 1} for unit FE or \code{r = r_true + 2} for two-way
-FE.}
+\item{r}{Positive integer. Number of interactive factors (default 1).}
+
+\item{force}{Additive fixed effects to remove jointly with the factors:
+\code{"none"} (default; intercept-free interactive model),
+\code{"unit"}, \code{"time"}, or \code{"two-way"}. Additive FE are
+estimated jointly with the factors via EM on the imputed (completed)
+panel, which is robust to informative (factor-correlated) missingness;
+use \code{force = "two-way"} for data with level/trend structure (matching
+the balanced \code{ife()} default). Note: with strong, near-collinear
+common trends, \code{"two-way"} can converge slowly.}
 
 \item{se}{SE type: \code{"standard"} (homoskedastic),
 \code{"robust"} (HC1), \code{"cluster"} (cluster-robust by unit), or
-\code{"hac"} (HAC with Bartlett kernel, for serially correlated errors;
-SWW2025 p.21). Default \code{"standard"}.}
+\code{"hac"} (HAC with a Bartlett kernel, for serially correlated errors).
+Default \code{"standard"}.}
 
 \item{init}{Initialisation method: \code{"ols"} (default, grand-mean OLS)
-or \code{"nnr"} (nuclear-norm regularisation, SWW2025 Section 3.2).}
+or \code{"nnr"} (nuclear-norm regularisation / soft-impute).}
 
-\item{bias_corr}{Logical. Apply the SWW2025 Theorem 4.2 analytical bias
+\item{bias_corr}{Logical. Apply the analytical incidental-parameter bias
 correction. Supports both strictly and weakly exogenous regressors
 (controlled by \code{exog}). Default \code{FALSE}.}
 
 \item{exog}{Exogeneity assumption: \code{"strict"} (default, regressors
 uncorrelated with past and future errors) or \code{"weak"} (weakly
 exogenous, e.g., lagged dependent variable \eqn{x_{it} = y_{i,t-1}}).
-When \code{"weak"} and \code{bias_corr = TRUE}, the additional
-\eqn{\hat{b}_2} term from SWW2025 Theorem 4.2 is computed.}
+When \code{"weak"} and \code{bias_corr = TRUE}, an additional dynamic
+bias term \eqn{\hat{b}_2} is included.}
 
 \item{L_T}{Bartlett kernel bandwidth for HAC standard errors (\code{se
   = "hac"}) and the dynamic bias term \eqn{\hat{b}_2} (\code{exog =
   "weak"}, \code{bias_corr = TRUE}). If \code{NULL} (default), set to
 \eqn{\lfloor 2 T^{1/5} \rfloor} after the panel dimensions are known.}
 
-\item{c_f}{SVT threshold constant (default 0.6, SWW2025 eq. 3.7).
-Used only when \code{init = "nnr"}.}
+\item{c_f}{Singular-value-thresholding constant (default 0.6) used for
+factor-number selection. Used only when \code{init = "nnr"}.}
 
 \item{nu_NT}{NNR penalty grid. If \code{NULL} (default), cross-validates
 over \code{c * sqrt(max(N, TT))} for \code{c} in \code{c(0.01, 0.1, 1, 10)}.}
@@ -109,36 +115,38 @@ observed cells.}
 }
 }
 \description{
-Fits the pure interactive fixed effects model
-\deqn{Y_{it} = X_{it}'\beta + \lambda_i'F_t + u_{it}}
-for unbalanced panels (units observed at different sets of time periods)
-via an Alternating Maximisation (AM) outer loop that iterates between
-updating \eqn{\hat\beta} and the factors \eqn{(\hat\lambda, \hat F)},
-with the EM algorithm of Bai (2009) Appendix B used as the inner loop
-to update \eqn{(\hat\lambda, \hat F)} given \eqn{\beta}.
-Exact inferential statistics (standard errors and bias correction) follow
-Su, Wang and Wang (2025).
+Fits the interactive fixed effects model
+\deqn{Y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i'F_t + u_{it}}
+for unbalanced panels (units observed at different sets of time periods),
+where the additive unit effects \eqn{\alpha_i} and time effects \eqn{\xi_t}
+are controlled by \code{force}. The estimation and inference theory follows
+Su, Wang and Wang (2025). Estimation uses an alternating outer loop
+that updates \eqn{\hat\beta} and the structure \eqn{(\hat\alpha, \hat\xi,
+\hat\lambda, \hat F)}, with an expectation-maximisation (EM) inner loop ---
+in the spirit of Bai (2009, Appendix B) and the missing-data factor /
+matrix-completion framework of Bai and Ng (2021) --- that imputes the
+unobserved cells from the current structure and re-estimates the additive
+and interactive components on the completed panel. An optional
+nuclear-norm-regularised (soft-impute) warm start (Mazumder, Hastie and
+Tibshirani 2010) is available via \code{init = "nnr"}.
 }
 \details{
-\strong{Additive fixed effects.}  The SWW2025 model does not include explicit
-additive unit effects \eqn{\alpha_i} or time effects \eqn{\xi_t}.
-SWW2025 (p.13, Theorem 3.2 discussion) states that the convergence and
-asymptotic theory extend "in spirit" to two-way fixed effects models, and
-(p.17, eq.\ 4.1--4.2 discussion) that "linear/nonlinear panels with one
-way/two way/interactive fixed effects are all covered by this framework."
-However, SWW2025 does not formally derive the SE or bias-correction
-formulas for the explicitly demeaned unbalanced case.
+\strong{Inference.} Standard errors use a sandwich estimator on factor-projected
+regressors (the unbalanced analogue of the balanced formula of Bai 2009),
+following Su, Wang and Wang (2025), with heteroskedasticity-robust,
+cluster-robust (Arellano 1987; Cameron, Gelbach and Miller 2011) and HAC
+(Newey and West 1987) variants. The optional analytical bias correction of
+Su, Wang and Wang (2025) removes the leading incidental-parameter bias,
+extending the corrections of Bai (2009) and Moon and Weidner (2017) to the
+unbalanced and predetermined-regressor case.
 
-The standard approach — supported by Bai (2009, p.1), who shows that
-two-way additive effects equal \eqn{\lambda_i'F_t} for the special choice
-\eqn{F_t = (1,\,\xi_t)'}, \eqn{\lambda_i = (\alpha_i,\,1)'} — is to
-absorb the additive effects into the factor structure by increasing \eqn{r}:
-\itemize{
-\item Unit FE only: set \code{r = r_true + 1}.
-\item Two-way FE: set \code{r = r_true + 2}.
-}
-The SWW2025 inferential theory (SE and bias correction) then applies
-directly to the augmented factor model.
+\strong{Additive fixed effects.} With \code{force = "none"} (default) the model
+is intercept-free and all heterogeneity is carried by the interactive
+factors. Setting \code{force = "unit"}, \code{"time"} or \code{"two-way"}
+estimates the additive effects jointly with the factors by demeaning the
+\emph{imputed} (completed) panel inside the EM loop, which is robust to
+informative missingness; the degrees-of-freedom adjustment is propagated to
+the standard errors.
 }
 \examples{
 data(cigar, package = "xtife")
@@ -150,10 +158,22 @@ fit <- ife_unbalanced(sales ~ price, data = cigar_unb,
 print(fit)
 }
 \references{
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
+interactive fixed effects panel data models with unbalanced panels.
+SSRN Working Paper No. 5177283. \doi{10.2139/ssrn.5177283}
+
 Bai, J. (2009). Panel data models with interactive fixed effects.
 \emph{Econometrica}, 77(4), 1229--1279. \doi{10.3982/ECTA6135}
 
-Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for
-unbalanced panel data models with interactive fixed effects.
-\emph{SSRN Working Paper} 5177283.
+Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor
+analysis of missing data. \emph{Journal of the American Statistical
+Association}, 116(536), 1746--1763. \doi{10.1080/01621459.2021.1967163}
+
+Mazumder, R., Hastie, T. and Tibshirani, R. (2010). Spectral regularization
+algorithms for learning large incomplete matrices. \emph{Journal of Machine
+Learning Research}, 11, 2287--2322.
+
+Moon, H. R. and Weidner, M. (2017). Dynamic linear panel regression models
+with interactive fixed effects. \emph{Econometric Theory}, 33, 158--195.
+\doi{10.1017/S0266466615000328}
 }

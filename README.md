@@ -18,7 +18,7 @@ Standard two-way fixed effects (TWFE) assumes unobserved heterogeneity enters ad
 
 $$y_{it} = \alpha_i + \xi_t + X_{it}'\beta + \lambda_i'F_t + u_{it}$$
 
-where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$ are unit-specific loadings. Setting $r = 0$ reduces the model to standard TWFE. For **unbalanced panels**, `ife_unbalanced()` estimates the pure interactive model without explicit additive FE terms. To accommodate additive effects, increase `r` by 1 (unit FE) or 2 (two-way FE) so the factors can absorb the additive heterogeneity.
+where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$ are unit-specific loadings. Setting $r = 0$ reduces the model to standard TWFE. For **unbalanced panels**, `ife_unbalanced()` supports the same additive fixed effects via its `force` argument (`"none"`, `"unit"`, `"time"`, `"two-way"`), estimated jointly with the factors by EM on the imputed panel — robust to informative (factor-correlated) missingness. Its default is `force = "none"` (the intercept-free interactive model); use `force = "two-way"` for data with level or trend structure.
 
 ---
 
@@ -26,11 +26,11 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 
 | Feature | Balanced (`ife`) | Unbalanced (`ife_unbalanced`) |
 |---------|:---:|:---:|
-| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | Alternating maximisation (AM) · [SWW (2025)](https://doi.org/10.2139/ssrn.5177283); OLS or NNR init |
+| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283); EM with matrix completion ([Bai & Ng 2021](https://doi.org/10.1080/01621459.2021.1967163)); OLS or NNR init |
 | Standard errors | Homoskedastic · HC1 robust · Cluster | Homoskedastic · HC1 robust · Cluster · HAC |
-| Static bias correction | [Bai (2009)](https://doi.org/10.3982/ECTA6135) $\hat B/N + \hat C/T$ | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_3$–$\hat b_6$ |
-| Dynamic bias correction | [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) | [SWW (2025)](https://doi.org/10.2139/ssrn.5177283) $\hat b_2$–$\hat b_6$ |
-| Factor number selection | IC1/2/3 · IC(BIC) · PC | SVT rule ([SWW 2025](https://doi.org/10.2139/ssrn.5177283) eq. 3.7) |
+| Static bias correction | [Bai (2009)](https://doi.org/10.3982/ECTA6135) $\hat B/N + \hat C/T$ | Analytical incidental-parameter correction |
+| Dynamic bias correction | [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) | Analytical, incl. predetermined-regressor term |
+| Factor number selection | IC1/2/3 · IC(BIC) · PC | SVT rule (singular value thresholding) |
 | Initialisation | — | OLS · Nuclear-norm regularisation (NNR) |
 | Dependencies | Base R only | Base R only |
 
@@ -67,11 +67,19 @@ print(fit)
 ```
 Interactive Fixed Effects (Bai 2009, Econometrica)
 -------------------------------------------------------
-        Estimate Std.Error  t.value   Pr(>|t|) CI.lower CI.upper
-price    -0.5242    0.0802  -6.5360     0.0000  -0.6814  -0.3670
-
-Converged: TRUE  (10 iterations)
-N = 46  T = 30  r = 2  force = two-way  se = cluster
+Panel    : N = 46 units, T = 30 periods
+Factors  : r = 2
+Force    : two-way fixed effects
+SE type  : cluster (by state)
+Outcome  : sales
+-------------------------------------------------------
+      Estimate Std.Error t.value Pr(>|t|)             95% CI
+price  -0.5242    0.0802 -6.5333   0.0000 [-0.6816, -0.3667] ***
+---
+Signif. codes: *** <0.01  ** <0.05  * <0.1
+-------------------------------------------------------
+sigma^2  : 18.456076 | df = 1157
+Converged: YES | Iterations: 10
 ```
 
 ### Standard error types
@@ -119,10 +127,10 @@ For the cigar panel ($N = 46$, $T = 30$, $T/N \approx 0.65$):
 
 | Estimator | Price coefficient |
 |-----------|------------------|
-| TWFE ($r = 0$) | −0.3796 |
+| TWFE ($r = 0$) | −1.0847 |
 | IFE ($r = 2$) | −0.5242 |
-| IFE + [Bai (2009)](https://doi.org/10.3982/ECTA6135) bias correction | −0.5309 |
-| IFE dynamic + [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) bias correction | −0.5343 |
+| IFE + [Bai (2009)](https://doi.org/10.3982/ECTA6135) bias correction | −0.5285 |
+| IFE dynamic + [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) bias correction | −0.5316 |
 
 ### Comparison with TWFE
 
@@ -138,7 +146,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 
 ## Unbalanced Panel: Quick Start
 
-`ife_unbalanced()` implements the [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) framework for genuinely unbalanced panels. The core algorithm is an Alternating Maximisation (AM) outer loop that iterates between updating β and the factors $(\hat\lambda, \hat F)$ until convergence, with the Bai (2009) EM algorithm used as the inner loop to update $(\hat\lambda, \hat F)$ given β. Initialisation is via plain OLS (`init = "ols"`, the default) or nuclear-norm regularisation (`init = "nnr"`, recommended when the panel is severely unbalanced or $r \geq 3$). The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
+`ife_unbalanced()` fits the IFE model on genuinely unbalanced panels following the estimation and inference theory of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283), which extends the interactive fixed effects estimator of [Bai (2009)](https://doi.org/10.3982/ECTA6135) to the unbalanced case using the missing-data factor analysis / matrix completion of [Bai & Ng (2021)](https://doi.org/10.1080/01621459.2021.1967163). The core algorithm is an alternating outer loop that updates β and the structure $(\hat\alpha, \hat\xi, \hat\lambda, \hat F)$ until convergence, with an expectation-maximisation inner loop that imputes the unobserved cells from the current structure. Initialisation is via plain OLS (`init = "ols"`, the default) or nuclear-norm-regularised soft-impute ([Mazumder, Hastie & Tibshirani 2010](https://www.jmlr.org/papers/v11/mazumder10a.html); `init = "nnr"`, recommended when the panel is severely unbalanced or $r \geq 3$). The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
 
 ```r
 # Simulate a 10% randomly missing panel
@@ -164,7 +172,7 @@ print(fit_unb)
 
 ### Factor number selection
 
-`ife_select_r_unb()` applies the singular value thresholding (SVT) rule from [SWW (2025)](https://doi.org/10.2139/ssrn.5177283), Section 3.3, to the nuclear-norm regularised matrix $\hat\Theta^{(0)}$:
+`ife_select_r_unb()` applies the singular value thresholding (SVT) rule of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) to the nuclear-norm regularised matrix $\hat\Theta^{(0)}$ — a missing-data counterpart of the [Bai & Ng (2002)](https://doi.org/10.1111/1468-0262.00273) information criteria:
 
 ```r
 sel_unb <- ife_select_r_unb(sales ~ price, data = cigar_unb,
@@ -174,7 +182,7 @@ sel_unb <- ife_select_r_unb(sales ~ price, data = cigar_unb,
 
 ### Analytical bias correction
 
-Setting `bias_corr = TRUE` applies the SWW (2025) Theorem 4.2 correction
+Setting `bias_corr = TRUE` applies the analytical incidental-parameter correction of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283),
 $\hat\beta^{abc} = \hat\beta - (NT)^{-1/2}\hat W_X^{-1}\hat b$,
 where the bias vector $\hat b$ depends on the exogeneity assumption:
 
@@ -218,9 +226,9 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `ife()` | Balanced | Fit IFE model (Bai 2009); returns coefficients, SEs, factors, loadings |
 | `print.ife()` | Balanced | Formatted coefficient table and model summary |
 | `ife_select_r()` | Balanced | Fit IFE for $r = 0, \ldots, r_{\max}$; compare IC1/2/3, IC(BIC), PC |
-| `ife_unbalanced()` | Unbalanced | Fit IFE via alternating maximisation (SWW 2025); OLS or NNR initialisation; exact SE, bias correction |
+| `ife_unbalanced()` | Unbalanced | Fit IFE via EM with matrix completion; OLS or NNR initialisation; analytical SE and bias correction |
 | `print.ife_unb()` | Unbalanced | Formatted coefficient table with bias components |
-| `ife_select_r_unb()` | Unbalanced | SVT factor selection (SWW 2025 eq. 3.7) |
+| `ife_select_r_unb()` | Unbalanced | SVT factor selection (singular value thresholding) |
 
 ### Key `ife()` arguments
 
@@ -244,9 +252,10 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `data` | — | Long-format `data.frame` (balanced or unbalanced) |
 | `index` | — | `c("unit_col", "time_col")` |
 | `r` | `1L` | Number of interactive factors |
+| `force` | `"none"` | Additive FE: `"none"`, `"unit"`, `"time"`, `"two-way"` (jointly estimated with the factors; default differs from `ife()` as the unbalanced model is intercept-free by default) |
 | `se` | `"standard"` | SE type: `"standard"`, `"robust"`, `"cluster"`, `"hac"` |
 | `init` | `"ols"` | Initialisation: `"ols"` or `"nnr"` (nuclear-norm) |
-| `bias_corr` | `FALSE` | Apply SWW (2025) analytical bias correction |
+| `bias_corr` | `FALSE` | Apply analytical incidental-parameter bias correction |
 | `exog` | `"strict"` | Exogeneity: `"strict"` or `"weak"` (dynamic regressors) |
 | `L_T` | `NULL` | HAC bandwidth ($\lfloor 2T^{1/5}\rfloor$ if `NULL`) |
 
@@ -286,13 +295,21 @@ Bai, J. (2009). Panel data models with interactive fixed effects. *Econometrica*
 
 Bai, J. and Ng, S. (2002). Determining the number of factors in approximate factor models. *Econometrica*, 70(1), 191–221. [doi:10.1111/1468-0262.00273](https://doi.org/10.1111/1468-0262.00273)
 
+Bai, J. and Ng, S. (2021). Matrix completion, counterfactuals, and factor analysis of missing data. *Journal of the American Statistical Association*, 116(536), 1746–1763. [doi:10.1080/01621459.2021.1967163](https://doi.org/10.1080/01621459.2021.1967163)
+
 Baltagi, B.H. (1995). *Econometric Analysis of Panel Data*. Wiley.
+
+Cameron, A.C., Gelbach, J.B. and Miller, D.L. (2011). Robust inference with multiway clustering. *Journal of Business & Economic Statistics*, 29(2), 238–249. [doi:10.1198/jbes.2010.07136](https://doi.org/10.1198/jbes.2010.07136)
 
 Ditzen, J. and Karavias, Y. (2025). Interactive, Grouped and Non-separable Fixed Effects: A Practitioner's Guide to the New Panel Data Econometrics. arXiv:2507.19099. [doi:10.48550/arXiv.2507.19099](https://doi.org/10.48550/arXiv.2507.19099)
 
+Mazumder, R., Hastie, T. and Tibshirani, R. (2010). Spectral regularization algorithms for learning large incomplete matrices. *Journal of Machine Learning Research*, 11, 2287–2322.
+
 Moon, H.R. and Weidner, M. (2017). Dynamic linear panel regression models with interactive fixed effects. *Econometric Theory*, 33, 158–195. [doi:10.1017/S0266466615000328](https://doi.org/10.1017/S0266466615000328)
 
-Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for interactive fixed effects panel data models with unbalanced panels. SSRN Working Paper 5177283. [doi:10.2139/ssrn.5177283](https://doi.org/10.2139/ssrn.5177283)
+Newey, W.K. and West, K.D. (1987). A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix. *Econometrica*, 55(3), 703–708. [doi:10.2307/1913610](https://doi.org/10.2307/1913610)
+
+Su, L., Wang, F. and Wang, Y. (2025). Estimation and inference for interactive fixed effects panel data models with unbalanced panels. *SSRN Working Paper No. 5177283*. [doi:10.2139/ssrn.5177283](https://doi.org/10.2139/ssrn.5177283)
 
 ---
 
