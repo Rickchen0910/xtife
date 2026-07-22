@@ -438,23 +438,26 @@ meaningless).
 
 Two options for the initial $(\hat\beta^{(0)}, \hat F^{(0)}, \hat\Lambda^{(0)})$:
 
-**`init = "ols"` (default):** plain OLS on observed cells gives
-$\hat\beta^{(0)}$; the EM inner loop is then run from $(\hat F, \hat\Lambda) = 0$.
-
-**`init = "nnr"` (nuclear-norm regularisation):** solves the nuclear-norm
-penalised problem
+**`init = "nnr"` (default):** the nuclear-norm-regularised (NNR) consistent
+initial estimator --- the first step of the two-step procedure of Su, Wang
+and Wang (2025, eq. 3.6) --- solves
 
 $$(\hat\beta^{(0)}, \hat\Theta^{(0)}) = \arg\min_{\beta, \Theta}
 \tfrac{1}{2}\!\sum_{it} d_{it}(y_{it} - \Theta_{it} - X_{it}'\beta)^2
 + \nu_{NT}\|\Theta\|_*$$
 
-via soft-impute iteration.  The penalty $\nu_{NT}$ is cross-validated over
-$c \cdot \sqrt{\max(N,T)}$ with $c \in \{0.01, 0.1, 1, 10\}$.
+Su, Wang and Wang (2025) solve this convex problem by ADMM; `xtife` solves
+the same objective by the soft-impute iteration of Mazumder, Hastie and
+Tibshirani (2010) --- both reach the same global optimum.  The penalty
+$\nu_{NT}$ is selected over $c \cdot \max(N,T)$ with
+$c \in \{0.01, 0.1, 1, 10\}$ (their footnote 12), minimising the
+observed-cell residual sum of squares of the rank-$r$ fit.
 
-NNR initialisation is recommended when the panel is severely unbalanced
-(fill rate $< 60\%$) or has a rich factor structure ($r \geq 3$).  For
-mildly unbalanced panels, both initialisations converge to the same fixed
-point.
+**`init = "ols"`:** plain OLS on observed cells gives $\hat\beta^{(0)}$;
+the EM inner loop is then run from $(\hat F, \hat\Lambda) = 0$.  This is
+faster but is not covered by the consistency theory for the initial
+estimator; for mildly unbalanced panels, both initialisations converge to
+the same fixed point.
 
 ```{r init_compare}
 # Both converge to the same coefficient for mild unbalancedness
@@ -547,7 +550,7 @@ threshold constant, which performs well for moderate degrees of
 unbalancedness.
 
 ```{r sel_unb, eval=FALSE}
-# Not run during build (NNR cross-validation takes ~10 s)
+# Not run during build (NNR penalty selection takes ~10 s)
 sel_unb <- ife_select_r_unb(sales ~ price, data = cigar_unb,
                               index = c("state", "year"), verbose = FALSE)
 cat(sprintf("SVT selects r_hat = %d\n", sel_unb$r_hat))
@@ -558,7 +561,7 @@ The function returns (invisibly):
 - `r_hat`: the selected number of factors (at least 1);
 - `sv`: the normalised singular values used in the threshold comparison;
 - `threshold`: the computed threshold value;
-- `nu_used`: the NNR penalty chosen by cross-validation.
+- `nu_used`: the NNR penalty selected from the grid of Su, Wang and Wang (2025, footnote 12).
 
 ## Analytical bias correction
 
@@ -719,12 +722,12 @@ stop with an informative message if any check fails.
 | `r` | `1L` | number of factors |
 | `force` | `"none"` | additive FE: `"none"` / `"unit"` / `"time"` / `"two-way"` (estimated jointly with the factors; default is intercept-free) |
 | `se` | `"standard"` | `"standard"` / `"robust"` / `"cluster"` / `"hac"` |
-| `init` | `"ols"` | initialisation: `"ols"` or `"nnr"` (nuclear-norm) |
+| `init` | `"nnr"` | initialisation: `"nnr"` (nuclear-norm, Su, Wang & Wang 2025 first step) or `"ols"` |
 | `bias_corr` | `FALSE` | apply analytical incidental-parameter bias correction |
 | `exog` | `"strict"` | exogeneity: `"strict"` or `"weak"` |
 | `L_T` | `NULL` | HAC bandwidth ($\lfloor 2T^{1/5}\rfloor$ if `NULL`) |
 | `c_f` | `0.6` | SVT threshold constant (used with `ife_select_r_unb()`) |
-| `nu_NT` | `NULL` | NNR penalty (cross-validated if `NULL`) |
+| `nu_NT` | `NULL` | NNR penalty (selected over $c \cdot \max(N,T)$, $c \in \{0.01, 0.1, 1, 10\}$, if `NULL`) |
 | `tol` | `1e-9` | outer-loop convergence tolerance |
 | `max_iter` | `10000L` | outer-loop iteration cap |
 | `tol_em` | `1e-7` | EM inner-loop convergence tolerance |

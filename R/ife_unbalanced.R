@@ -172,8 +172,10 @@
 # .ife_nnr_unb — NNR soft-impute initial estimator
 #
 # Minimises  (1/2) sum_{it} d_it (Y_it - Theta_it - X_it' beta)^2 + nu ||Theta||_*
-# via soft-impute iteration.  Cross-validates the penalty nu over
-# nu_cands = c * sqrt(max(N, TT)) for c in c_grid.
+# (Su, Wang and Wang 2025, eq. 3.6) via soft-impute iteration (same convex
+# objective as their ADMM solver; identical global optimum).  The penalty nu
+# is selected over nu_cands = c * max(N, TT) for c in c_grid, the grid of
+# Su, Wang and Wang (2025, footnote 12).
 #
 # @param Y_long      n_obs outcome vector
 # @param X_long      n_obs x p covariate matrix (may have 0 columns)
@@ -194,7 +196,7 @@
 
   p        <- ncol(X_long)
   n_obs    <- length(Y_long)
-  nu_cands <- c_grid * sqrt(max(N, TT))
+  nu_cands <- c_grid * max(N, TT)
 
   best_loss   <- Inf
   best_nu     <- nu_cands[1L]
@@ -241,6 +243,13 @@
       if (max(abs((Theta - Theta_old)[obs_lin])) < tol_nnr) break
     }
 
+    # ---- Skip degenerate candidates: nu >= sigma_1 shrinks Theta to exactly
+    #      zero (rank 0), which cannot initialise the factor structure and
+    #      would make the SVT threshold degenerate.  The selection rule of
+    #      Su, Wang and Wang (2025, footnote 12) implicitly rejects such nu
+    #      (a factor-free fit has a large objective value). ----
+    if (all(d_shrunk == 0)) next
+
     # ---- Evaluate loss: rank-r approximation of Theta at observed cells ----
     r_eff    <- min(r, length(sv$d))
     d_r      <- sv$d[seq_len(r_eff)]
@@ -260,6 +269,12 @@
       best_Theta <- Theta
       best_beta  <- beta
     }
+  }
+
+  # ---- All candidates degenerate: every nu in the grid exceeded sigma_1 ----
+  if (!is.finite(best_loss)) {
+    stop("NNR initialisation failed: every penalty in the nu grid shrank ",
+         "Theta to zero. Supply smaller values via 'nu_NT'.")
   }
 
   # ---- Extract factors from best Theta using EM normalisation ----
@@ -1043,9 +1058,12 @@
 #' in the spirit of Bai (2009, Appendix B) and the missing-data factor /
 #' matrix-completion framework of Bai and Ng (2021) --- that imputes the
 #' unobserved cells from the current structure and re-estimates the additive
-#' and interactive components on the completed panel. An optional
-#' nuclear-norm-regularised (soft-impute) warm start (Mazumder, Hastie and
-#' Tibshirani 2010) is available via \code{init = "nnr"}.
+#' and interactive components on the completed panel. Following the two-step
+#' procedure of Su, Wang and Wang (2025), the default initialisation
+#' (\code{init = "nnr"}) is their nuclear-norm-regularised consistent initial
+#' estimator, computed here by the soft-impute algorithm of Mazumder, Hastie
+#' and Tibshirani (2010) (the same convex objective they solve by ADMM); a
+#' faster pooled-OLS warm start is available via \code{init = "ols"}.
 #'
 #' **Inference.** Standard errors use a sandwich estimator on factor-projected
 #' regressors (the unbalanced analogue of the balanced formula of Bai 2009),
@@ -1081,8 +1099,11 @@
 #'   \code{"robust"} (HC1), \code{"cluster"} (cluster-robust by unit), or
 #'   \code{"hac"} (HAC with a Bartlett kernel, for serially correlated errors).
 #'   Default \code{"standard"}.
-#' @param init    Initialisation method: \code{"ols"} (default, grand-mean OLS)
-#'   or \code{"nnr"} (nuclear-norm regularisation / soft-impute).
+#' @param init    Initialisation method: \code{"nnr"} (default,
+#'   nuclear-norm-regularised initial estimator --- the first step of
+#'   Su, Wang and Wang (2025), solved by soft-impute) or \code{"ols"}
+#'   (pooled-OLS warm start; faster, but not covered by the consistency
+#'   theory for the initial estimator).
 #' @param bias_corr Logical. Apply the analytical incidental-parameter bias
 #'   correction. Supports both strictly and weakly exogenous regressors
 #'   (controlled by \code{exog}). Default \code{FALSE}.
@@ -1097,8 +1118,9 @@
 #'   \eqn{\lfloor 2 T^{1/5} \rfloor} after the panel dimensions are known.
 #' @param c_f     Singular-value-thresholding constant (default 0.6) used for
 #'   factor-number selection. Used only when \code{init = "nnr"}.
-#' @param nu_NT   NNR penalty grid. If \code{NULL} (default), cross-validates
-#'   over \code{c * sqrt(max(N, TT))} for \code{c} in \code{c(0.01, 0.1, 1, 10)}.
+#' @param nu_NT   NNR penalty grid. If \code{NULL} (default), selects over
+#'   \code{c * max(N, TT)} for \code{c} in \code{c(0.01, 0.1, 1, 10)}, the
+#'   grid of Su, Wang and Wang (2025, footnote 12).
 #' @param tol     Outer-loop convergence tolerance on
 #'   \eqn{\max|\hat\beta^{new} - \hat\beta^{old}|}. Default \code{1e-9}.
 #' @param max_iter Maximum outer-loop iterations. Default \code{10000L}.
@@ -1176,7 +1198,7 @@ ife_unbalanced <- function(formula,
                             r           = 1L,
                             force       = "none",
                             se          = "standard",
-                            init        = "ols",
+                            init        = "nnr",
                             bias_corr   = FALSE,
                             exog        = "strict",
                             L_T         = NULL,
@@ -1326,7 +1348,7 @@ ife_unbalanced <- function(formula,
 
   if (init == "nnr" && p > 0L) {
     obs_lin_init <- (unit_idx - 1L) * TT + time_idx
-    c_grid <- if (is.null(nu_NT)) c(0.01, 0.1, 1, 10) else nu_NT / sqrt(max(N, TT))
+    c_grid <- if (is.null(nu_NT)) c(0.01, 0.1, 1, 10) else nu_NT / max(N, TT)
 
     nnr <- .ife_nnr_unb(
       Y_long  = Y_long_c,
@@ -1598,8 +1620,10 @@ ife_unbalanced <- function(formula,
 #' @param index   Character vector of length 2: \code{c("unit_col", "time_col")}.
 #' @param c_f     SVT threshold constant (default 0.6).
 #' @param nu_NT   Optional scalar or vector of NNR penalty values. If
-#'   \code{NULL} (default), cross-validates over
-#'   \code{c(0.01, 0.1, 1, 10) * sqrt(max(N, TT))}.
+#'   \code{NULL} (default), selects over
+#'   \code{c(0.01, 0.1, 1, 10) * max(N, TT)}, the grid of Su, Wang and
+#'   Wang (2025, footnote 12), by minimising the observed-cell residual
+#'   sum of squares of the rank-\code{r} fit.
 #' @param verbose Logical; print result table. Default \code{TRUE}.
 #'
 #' @return Invisibly returns a list with components \code{r_hat}, \code{sv}
@@ -1693,7 +1717,7 @@ ife_select_r_unb <- function(formula, data, index,
   X_long_c <- X_long
 
   obs_lin <- (unit_idx - 1L) * TT + time_idx
-  c_grid  <- if (is.null(nu_NT)) c(0.01, 0.1, 1, 10) else nu_NT / sqrt(max(N, TT))
+  c_grid  <- if (is.null(nu_NT)) c(0.01, 0.1, 1, 10) else nu_NT / max(N, TT)
 
   # ---- NNR: get Theta_hat_0 (no factor extraction; r = 1 here is a placeholder) ----
   nnr <- .ife_nnr_unb(
@@ -1710,7 +1734,10 @@ ife_select_r_unb <- function(formula, data, index,
   sv_norm <- svd(Theta0 / sqrt(N * TT), nu = 0L, nv = 0L)$d
   c_NT    <- min(sqrt(N), sqrt(TT))
   thr     <- c_f * sqrt(c_NT^(-0.25) * sv_norm[1L])
-  r_hat   <- max(1L, as.integer(sum(sv_norm >= thr)))
+  # Guard: sigma_1 = 0 makes the relative threshold degenerate (0 >= 0 for
+  # every singular value); a zero Theta carries no factor information.
+  r_hat   <- if (sv_norm[1L] <= 0) 1L else
+               max(1L, as.integer(sum(sv_norm >= thr)))
 
   if (verbose) {
     cat("\nSVT Factor Selection (singular value thresholding)\n")

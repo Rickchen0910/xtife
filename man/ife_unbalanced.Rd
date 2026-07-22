@@ -11,7 +11,7 @@ ife_unbalanced(
   r = 1L,
   force = "none",
   se = "standard",
-  init = "ols",
+  init = "nnr",
   bias_corr = FALSE,
   exog = "strict",
   L_T = NULL,
@@ -47,8 +47,11 @@ common trends, \code{"two-way"} can converge slowly.}
 \code{"hac"} (HAC with a Bartlett kernel, for serially correlated errors).
 Default \code{"standard"}.}
 
-\item{init}{Initialisation method: \code{"ols"} (default, grand-mean OLS)
-or \code{"nnr"} (nuclear-norm regularisation / soft-impute).}
+\item{init}{Initialisation method: \code{"nnr"} (default,
+nuclear-norm-regularised initial estimator --- the first step of
+Su, Wang and Wang (2025), solved by soft-impute) or \code{"ols"}
+(pooled-OLS warm start; faster, but not covered by the consistency
+theory for the initial estimator).}
 
 \item{bias_corr}{Logical. Apply the analytical incidental-parameter bias
 correction. Supports both strictly and weakly exogenous regressors
@@ -68,8 +71,9 @@ bias term \eqn{\hat{b}_2} is included.}
 \item{c_f}{Singular-value-thresholding constant (default 0.6) used for
 factor-number selection. Used only when \code{init = "nnr"}.}
 
-\item{nu_NT}{NNR penalty grid. If \code{NULL} (default), cross-validates
-over \code{c * sqrt(max(N, TT))} for \code{c} in \code{c(0.01, 0.1, 1, 10)}.}
+\item{nu_NT}{NNR penalty grid. If \code{NULL} (default), selects over
+\code{c * max(N, TT)} for \code{c} in \code{c(0.01, 0.1, 1, 10)}, the
+grid of Su, Wang and Wang (2025, footnote 12).}
 
 \item{tol}{Outer-loop convergence tolerance on
 \eqn{\max|\hat\beta^{new} - \hat\beta^{old}|}. Default \code{1e-9}.}
@@ -126,9 +130,12 @@ that updates \eqn{\hat\beta} and the structure \eqn{(\hat\alpha, \hat\xi,
 in the spirit of Bai (2009, Appendix B) and the missing-data factor /
 matrix-completion framework of Bai and Ng (2021) --- that imputes the
 unobserved cells from the current structure and re-estimates the additive
-and interactive components on the completed panel. An optional
-nuclear-norm-regularised (soft-impute) warm start (Mazumder, Hastie and
-Tibshirani 2010) is available via \code{init = "nnr"}.
+and interactive components on the completed panel. Following the two-step
+procedure of Su, Wang and Wang (2025), the default initialisation
+(\code{init = "nnr"}) is their nuclear-norm-regularised consistent initial
+estimator, computed here by the soft-impute algorithm of Mazumder, Hastie
+and Tibshirani (2010) (the same convex objective they solve by ADMM); a
+faster pooled-OLS warm start is available via \code{init = "ols"}.
 }
 \details{
 \strong{Inference.} Standard errors use a sandwich estimator on factor-projected

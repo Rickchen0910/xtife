@@ -1,7 +1,7 @@
 Package: xtife
 Type: Package
 Title: Interactive Fixed Effects Estimator for Panel Data
-Version: 0.1.4
+Version: 0.1.5
 Date: 2026-07-22
 Authors@R: person("Binzhi", "Chen",
                   email = "Binzhi.Chen9@gmail.com",

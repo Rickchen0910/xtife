@@ -16,8 +16,10 @@ ife_select_r_unb(formula, data, index, c_f = 0.6, nu_NT = NULL, verbose = TRUE)
 \item{c_f}{SVT threshold constant (default 0.6).}
 
 \item{nu_NT}{Optional scalar or vector of NNR penalty values. If
-\code{NULL} (default), cross-validates over
-\code{c(0.01, 0.1, 1, 10) * sqrt(max(N, TT))}.}
+\code{NULL} (default), selects over
+\code{c(0.01, 0.1, 1, 10) * max(N, TT)}, the grid of Su, Wang and
+Wang (2025, footnote 12), by minimising the observed-cell residual
+sum of squares of the rank-\code{r} fit.}
 
 \item{verbose}{Logical; print result table. Default \code{TRUE}.}
 }

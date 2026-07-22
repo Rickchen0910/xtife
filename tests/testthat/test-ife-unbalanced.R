@@ -184,6 +184,17 @@ test_that("U7d: missing index column is caught", {
   )
 })
 
+test_that("U7e: nu grid with only degenerate penalties is rejected", {
+  # A penalty far above sigma_1 shrinks Theta to exactly zero; such candidates
+  # are skipped, and an all-degenerate grid must error, not return r_hat = N^T.
+  expect_error(
+    ife_select_r_unb(sales ~ price, data = cigar,
+                     index = c("state", "year"),
+                     nu_NT = 1e12, verbose = FALSE),
+    "NNR initialisation failed"
+  )
+})
+
 
 # ============================================================================
 # Test U8 — r = 1 single-factor: no numerical errors, all outputs finite

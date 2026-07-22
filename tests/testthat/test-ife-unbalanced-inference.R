@@ -250,8 +250,8 @@ test_that("S8: all new return fields present with bias_corr = TRUE", {
   expect_true(!is.null(fit$b6))
   expect_equal(length(fit$b_hat), 1L)   # 1 regressor
 
-  # Meta fields
-  expect_equal(fit$init, "ols")
+  # Meta fields (default init is "nnr" — the Su, Wang and Wang (2025) first step)
+  expect_equal(fit$init, "nnr")
   expect_true(fit$bias_corr)
 
   # b_hat = b3 + b4 + b5 + b6

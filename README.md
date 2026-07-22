@@ -26,12 +26,12 @@ where $F_t \in \mathbb{R}^r$ are common factors and $\lambda_i \in \mathbb{R}^r$
 
 | Feature | Balanced (`ife`) | Unbalanced (`ife_unbalanced`) |
 |---------|:---:|:---:|
-| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283); EM with matrix completion ([Bai & Ng 2021](https://doi.org/10.1080/01621459.2021.1967163)); OLS or NNR init |
+| Estimator | [Bai (2009)](https://doi.org/10.3982/ECTA6135) SVD alternating projections | [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283); EM with matrix completion ([Bai & Ng 2021](https://doi.org/10.1080/01621459.2021.1967163)); NNR (default) or OLS init |
 | Standard errors | Homoskedastic · HC1 robust · Cluster | Homoskedastic · HC1 robust · Cluster · HAC |
 | Static bias correction | [Bai (2009)](https://doi.org/10.3982/ECTA6135) $\hat B/N + \hat C/T$ | Analytical incidental-parameter correction |
 | Dynamic bias correction | [Moon & Weidner (2017)](https://doi.org/10.1017/S0266466615000328) | Analytical, incl. predetermined-regressor term |
 | Factor number selection | IC1/2/3 · IC(BIC) · PC | SVT rule (singular value thresholding) |
-| Initialisation | — | OLS · Nuclear-norm regularisation (NNR) |
+| Initialisation | — | Nuclear-norm regularisation (NNR, default) · OLS |
 | Dependencies | Base R only | Base R only |
 
 ---
@@ -146,7 +146,7 @@ fit0 <- ife(sales ~ price, data = cigar,
 
 ## Unbalanced Panel: Quick Start
 
-`ife_unbalanced()` fits the IFE model on genuinely unbalanced panels following the estimation and inference theory of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283), which extends the interactive fixed effects estimator of [Bai (2009)](https://doi.org/10.3982/ECTA6135) to the unbalanced case using the missing-data factor analysis / matrix completion of [Bai & Ng (2021)](https://doi.org/10.1080/01621459.2021.1967163). The core algorithm is an alternating outer loop that updates β and the structure $(\hat\alpha, \hat\xi, \hat\lambda, \hat F)$ until convergence, with an expectation-maximisation inner loop that imputes the unobserved cells from the current structure. Initialisation is via plain OLS (`init = "ols"`, the default) or nuclear-norm-regularised soft-impute ([Mazumder, Hastie & Tibshirani 2010](https://www.jmlr.org/papers/v11/mazumder10a.html); `init = "nnr"`, recommended when the panel is severely unbalanced or $r \geq 3$). The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
+`ife_unbalanced()` fits the IFE model on genuinely unbalanced panels following the estimation and inference theory of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283), which extends the interactive fixed effects estimator of [Bai (2009)](https://doi.org/10.3982/ECTA6135) to the unbalanced case using the missing-data factor analysis / matrix completion of [Bai & Ng (2021)](https://doi.org/10.1080/01621459.2021.1967163). The core algorithm is an alternating outer loop that updates β and the structure $(\hat\alpha, \hat\xi, \hat\lambda, \hat F)$ until convergence, with an expectation-maximisation inner loop that imputes the unobserved cells from the current structure. Initialisation defaults to the nuclear-norm-regularised (NNR) consistent initial estimator of [Su, Wang & Wang (2025)](https://doi.org/10.2139/ssrn.5177283) (`init = "nnr"`, solved by the soft-impute algorithm of [Mazumder, Hastie & Tibshirani 2010](https://www.jmlr.org/papers/v11/mazumder10a.html) — the same convex objective they solve by ADMM); a faster pooled-OLS warm start is available via `init = "ols"`. The resulting estimator is $\sqrt{NT}$-consistent and asymptotically normal.
 
 ```r
 # Simulate a 10% randomly missing panel
@@ -208,13 +208,13 @@ fit_dyn_unb <- ife_unbalanced(y ~ lag_y,
 ### Initialisation options
 
 ```r
-# Default OLS initialisation (fast; works well for fill >= 60%)
-fit_ols <- ife_unbalanced(sales ~ price, data = cigar_unb,
-                           index = c("state", "year"), r = 2, init = "ols")
-
-# Nuclear-norm regularisation (recommended for fill < 60% or r >= 3)
+# Default: NNR initial estimator (Su, Wang & Wang 2025 first step)
 fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
                            index = c("state", "year"), r = 2, init = "nnr")
+
+# Faster pooled-OLS warm start (not covered by the initial-estimator theory)
+fit_ols <- ife_unbalanced(sales ~ price, data = cigar_unb,
+                           index = c("state", "year"), r = 2, init = "ols")
 ```
 
 ---
@@ -226,7 +226,7 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `ife()` | Balanced | Fit IFE model (Bai 2009); returns coefficients, SEs, factors, loadings |
 | `print.ife()` | Balanced | Formatted coefficient table and model summary |
 | `ife_select_r()` | Balanced | Fit IFE for $r = 0, \ldots, r_{\max}$; compare IC1/2/3, IC(BIC), PC |
-| `ife_unbalanced()` | Unbalanced | Fit IFE via EM with matrix completion; OLS or NNR initialisation; analytical SE and bias correction |
+| `ife_unbalanced()` | Unbalanced | Fit IFE via EM with matrix completion; NNR (default) or OLS initialisation; analytical SE and bias correction |
 | `print.ife_unb()` | Unbalanced | Formatted coefficient table with bias components |
 | `ife_select_r_unb()` | Unbalanced | SVT factor selection (singular value thresholding) |
 
@@ -254,7 +254,7 @@ fit_nnr <- ife_unbalanced(sales ~ price, data = cigar_unb,
 | `r` | `1L` | Number of interactive factors |
 | `force` | `"none"` | Additive FE: `"none"`, `"unit"`, `"time"`, `"two-way"` (jointly estimated with the factors; default differs from `ife()` as the unbalanced model is intercept-free by default) |
 | `se` | `"standard"` | SE type: `"standard"`, `"robust"`, `"cluster"`, `"hac"` |
-| `init` | `"ols"` | Initialisation: `"ols"` or `"nnr"` (nuclear-norm) |
+| `init` | `"nnr"` | Initialisation: `"nnr"` (nuclear-norm initial estimator, [Su, Wang & Wang 2025](https://doi.org/10.2139/ssrn.5177283) first step) or `"ols"` (faster warm start) |
 | `bias_corr` | `FALSE` | Apply analytical incidental-parameter bias correction |
 | `exog` | `"strict"` | Exogeneity: `"strict"` or `"weak"` (dynamic regressors) |
 | `L_T` | `NULL` | HAC bandwidth ($\lfloor 2T^{1/5}\rfloor$ if `NULL`) |
@@ -275,14 +275,14 @@ Web: [https://rickchen0910.github.io/](https://rickchen0910.github.io/)
 Please cite as follows:
 
 Chen, B. (2026). xtife: Interactive Fixed Effects Estimator for Panel Data.
-R package version 0.1.4. https://CRAN.R-project.org/package=xtife.
+R package version 0.1.5. https://CRAN.R-project.org/package=xtife.
 
 ```bibtex
 @Manual{xtife,
   title  = {{xtife}: Interactive Fixed Effects Estimator for Panel Data},
   author = {Binzhi Chen},
   year   = {2026},
-  note   = {R package version 0.1.4},
+  note   = {R package version 0.1.5},
   url    = {https://CRAN.R-project.org/package=xtife},
 }
 ```
